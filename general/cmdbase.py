@@ -6,6 +6,7 @@ import os, sys
 class CmdBase:
    _prog = None
    _version = None
+   _desc = None
 
    _args = None
    _logformat = None
@@ -14,9 +15,10 @@ class CmdBase:
 
    _logger = None
 
-   def __init__(self, prog, version):
+   def __init__(self, prog, version, desc = None):
       self._prog = prog
       self._version = version
+      self._desc = desc
       pass
 
    def run(self):
@@ -46,6 +48,8 @@ class CmdBase:
          prog = os.path.basename(sys.argv[0])
          prog, _ = os.path.splitext(prog)
       kwargs['prog'] = prog
+      if 'description' in kwargs and self._desc is not None:
+         kwargs['description'] = self._desc
 
       parser = argparse.ArgumentParser(**kwargs)
       parser.add_argument('--version', action=self.action_version(self._version),
@@ -59,7 +63,7 @@ class CmdBase:
       return parser
 
    def __parse(self):
-      parser = self._get_parser(description="description")
+      parser = self._get_parser()
       self._prepare_parser(parser)
       args = parser.parse_args()
       self._args = args
@@ -87,6 +91,9 @@ class CmdBase:
 
    def logdebug(self, msg, *args, **kwargs):
       self._logger().debug(msg, *args, **kwargs)
+
+   def logEnableFor(self, lv):
+      return self._logger().isEnabledFor(lv)
 
    def __init_logger(self):
       args = self._args
