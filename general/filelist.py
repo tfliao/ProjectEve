@@ -11,9 +11,10 @@ class FileList(CmdBase):
    __binaries = []
 
    version = '1.0.0'
+   desc = "search files with specified key word"
 
-   def __init__(self, prog):
-      CmdBase.__init__(self, prog, self.version)
+   def __init__(self, prog = None, prefix = None):
+      CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix)
       self.__files = []
       self.__binaries = []
 

@@ -4,6 +4,7 @@ import logging
 import os, sys
 
 class CmdBase:
+   _prefix = None
    _prog = None
    _version = None
    _desc = None
@@ -15,7 +16,8 @@ class CmdBase:
 
    _logger = None
 
-   def __init__(self, prog, version, desc = None):
+   def __init__(self, prog, version, desc = None, prefix = None):
+      self._prefix = prefix
       self._prog = prog
       self._version = version
       self._desc = desc
@@ -47,6 +49,8 @@ class CmdBase:
       else:
          prog = os.path.basename(sys.argv[0])
          prog, _ = os.path.splitext(prog)
+      if self._prefix is not None:
+         prog = self._prefix + ' ' + prog
       kwargs['prog'] = prog
       if 'description' in kwargs and self._desc is not None:
          kwargs['description'] = self._desc

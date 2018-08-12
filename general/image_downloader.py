@@ -17,8 +17,8 @@ class ImageDownloader(CmdBase):
 
    __ext_map = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/bmp': 'bmp'}
 
-   def __init__(self, prog):
-      CmdBase.__init__(self, prog, self.version, self.desc)
+   def __init__(self, prog = None, prefix = None):
+      CmdBase.__init__(self, prog, self.version, self.desc, prefix)
 
    def _run(self):
       if not self.__precheck():
