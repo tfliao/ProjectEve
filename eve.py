@@ -1,38 +1,27 @@
 #!/usr/bin/python
+# vim: set expandtab:
+
 import os, sys
 import importlib
-import config
+import configparser
 
 # eve [module] <feature> feature_args ...
 class Eve:
     _script = None
     _modules = {}
     _classes = {}
+    _config = {}
 
     def __init__(self):
         self._script = os.path.basename(__file__)
+        self.__load_config()
         self.__load_classes()
         cls = self.__parse()
         if cls is not None:
             self.__exec(cls)
         pass
 
-    def __load_classes(self):
-        modules = map(__import__, config.modules)
-        for m in modules:
-            mod = {'name': m.__name__,
-                   'desc': m.__desc__,
-                   'classes': [] }
-            self._modules[m.__name__] = mod
-            for k, v in m.__classmap__.items():
-                self._modules[m.__name__]['classes'].append(k)
-                if k not in self._classes:
-                    cls = { 'name': k,
-                            'classname': v,
-                            'modules': [] }
-                    self._classes[k] = cls
-                self._classes[k]['modules'].append(m.__name__)
-
+    ### helper functions ###
     def is_help(self, arg):
         return arg in ['?', '-h', '--help']
 
@@ -46,6 +35,35 @@ class Eve:
         if module is not None:
             return module in cls['modules']
         return True
+    ### end of helper functions ###
+
+    def __load_config(self):
+        self._config['modules'] = []
+
+        cfpr = configparser.ConfigParser()
+        cfpr.read('eve.conf')
+        if 'modules' in cfpr:
+            for m in cfpr['modules']:
+                if cfpr['modules'][m]:
+                    self._config['modules'].append(m)
+        pass
+
+
+    def __load_classes(self):
+        modules = map(__import__, self._config['modules'])
+        for m in modules:
+            mod = {'name': m.__name__,
+                   'desc': m.__desc__,
+                   'classes': [] }
+            self._modules[m.__name__] = mod
+            for k, v in m.__classmap__.items():
+                self._modules[m.__name__]['classes'].append(k)
+                if k not in self._classes:
+                    cls = { 'name': k,
+                            'classname': v,
+                            'modules': [] }
+                    self._classes[k] = cls
+                self._classes[k]['modules'].append(m.__name__)
 
     def __parse(self):
         args = sys.argv
@@ -95,22 +113,22 @@ class Eve:
     def __help(self, msg = None):
         if msg:
             print(msg)
-        print 'Usage: {} [module] feature args ... '.format(self._script)
+        print('Usage: {} [module] feature args ... '.format(self._script))
         print
-        print 'Availiable modules:'
+        print('Availiable modules:')
         for m in self._modules.values():
-            print '{:>10} : {}'.format(m['name'], m['desc'])
+            print('{:>10} : {}'.format(m['name'], m['desc']))
         pass
 
     # eve module <cr> | ? | -h | --help | (unknown feature)
     def __help_module(self, module, msg = None):
         if msg:
             print(msg)
-        print 'Usage: {} {} feature args ... '.format(self._script, module)
+        print('Usage: {} {} feature args ... '.format(self._script, module))
         print
-        print 'Availiable features in {}:'.format(module)
+        print('Availiable features in {}:'.format(module))
         for c in self._modules[module]['classes']:
-            print '   {}'.format(c)
+            print('   {}'.format(c))
         pass
 
 if __name__ == '__main__':
