@@ -16,11 +16,12 @@ class CmdBase:
 
    _logger = None
 
-   def __init__(self, prog, version, desc = None, prefix = None):
+   def __init__(self, prog, version, desc = None, prefix = None, loggername = None):
       self._prefix = prefix
       self._prog = prog
       self._version = version
       self._desc = desc
+      self._loggername = loggername
       pass
 
    def run(self):
@@ -124,7 +125,7 @@ class CmdBase:
          handler = logging.StreamHandler(sys.stdout)
       else:
          handler = logging.FileHandler(logfile)
-      
+
       if self._logformat is None:
          self._logformat = '[%(name)s][%(asctime)s][%(levelname)s] %(message)s'
       formatter = logging.Formatter(self._logformat)
@@ -140,7 +141,7 @@ class CmdBase:
    def prompt(self, msg, options = None, default = None):
       option_str = ''
       if options is not None:
-         if type(options) is not list: 
+         if type(options) is not list:
             raise "given options must in list"
          if default is not None:
             if default in options:
@@ -173,7 +174,6 @@ class CmdBase:
                accept_input = True
       return r
    ### end of interactive ###
-      
 
    ### start of child implement methods ###
    def _prepare_parser(self, parser):

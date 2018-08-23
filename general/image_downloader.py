@@ -17,8 +17,8 @@ class ImageDownloader(CmdBase):
 
    __ext_map = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/bmp': 'bmp'}
 
-   def __init__(self, prog = None, prefix = None):
-      CmdBase.__init__(self, prog, self.version, self.desc, prefix)
+   def __init__(self, prog = None, prefix = None, loggername=None):
+      CmdBase.__init__(self, prog, self.version, self.desc, prefix, loggername)
 
    def _run(self):
       if not self.__precheck():
@@ -72,7 +72,7 @@ class ImageDownloader(CmdBase):
    def __filter_images(self):
       if len(self._args.filter) == 0:
          return
-      patterns = [r'' + f for f in self._args.filter] 
+      patterns = [r'' + f for f in self._args.filter]
       def match_patterns(str):
          for p in patterns:
             if re.search(p, str):

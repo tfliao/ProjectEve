@@ -106,7 +106,7 @@ class Eve:
 
     def __exec(self, cls):
         m = importlib.import_module('{}.{}'.format(cls['module'], cls['name']))
-        c = getattr(m, cls['classname'])(cls['classname'], cls['prefix'])
+        c = getattr(m, cls['classname'])(cls['name'], cls['prefix'], cls['classname'])
         c.run()
 
     # eve <cr> | ? | --help | -h | (unknown module)
