@@ -12,11 +12,18 @@ class Eve:
     _classes = {}
     _config = {}
 
+    _eve_conf_file = 'eve.conf'
+
+    _eve_system_str = 'system'
+    _eve_system_desc = 'eve system operations'
+
     def __init__(self):
         self._script = os.path.basename(__file__)
         self.__load_config()
         self.__load_classes()
         cls = self.__parse()
+        print(self._modules)
+        print(self._classes)
         if cls is not None:
             self.__exec(cls)
         pass
@@ -40,14 +47,13 @@ class Eve:
     def __load_config(self):
         self._config['modules'] = []
 
-        cfpr = configparser.ConfigParser()
-        cfpr.read('eve.conf')
-        if 'modules' in cfpr:
-            for m in cfpr['modules']:
-                if cfpr['modules'][m]:
+        parser = configparser.ConfigParser()
+        parser.read(self._eve_conf_file)
+        if 'modules' in parser:
+            for m in parser['modules']:
+                if parser['modules'][m]:
                     self._config['modules'].append(m)
         pass
-
 
     def __load_classes(self):
         modules = map(__import__, self._config['modules'])
@@ -65,10 +71,50 @@ class Eve:
                     self._classes[k] = cls
                 self._classes[k]['modules'].append(m.__name__)
 
+    def __system(self):
+        args = sys.argv
+        if len(args) == 2 or self.is_help(args[2]):
+            self.__help_system()
+        elif args[2] == 'scan':
+            self.__system_scan()
+        else:
+            self.__help_system()
+
+    # eve system <cr> | ? | -h | --help | (unknown feature)
+    def __help_system(self):
+        features = ['scan']
+        print('Usage: {} {} ({}) ' \
+            .format(self._script, self._eve_system_str, '|'.join(features)))
+        pass
+
+    def __system_scan(self):
+        writer = configparser.RawConfigParser()
+        writer.add_section('modules')
+        for m in self._config['modules']:
+            writer.set('modules', m, 'True')
+
+        modules = map(__import__, self._config['modules'])
+        for m in modules:
+            writer.add_section(m.__name__)
+            writer.set(m.__name__, "__desc__", m.__desc__)
+
+            mod_classes = m.__name__ + ".classes"
+            writer.add_section(mod_classes)
+
+            classes = m.__all__
+            for k, v in m.__classmap__.items():
+                if k in classes:
+                    writer.set(mod_classes, k, v)
+        with open(self._eve_conf_file, "w") as configfile:
+            writer.write(configfile)
+
     def __parse(self):
         args = sys.argv
         if len(args) == 1 or self.is_help(args[1]):
             self.__help()
+            return None
+        elif args[1] == self._eve_system_str:
+            self.__system()
             return None
         elif self.is_module(args[1]):
             prefix = '{} {}'.format(args[0], args[1])
@@ -116,6 +162,7 @@ class Eve:
         print('Usage: {} [module] feature args ... '.format(self._script))
         print
         print('Availiable modules:')
+        print('{:>10} : {}'.format(self._eve_system_str, self._eve_system_desc))
         for m in self._modules.values():
             print('{:>10} : {}'.format(m['name'], m['desc']))
         pass
