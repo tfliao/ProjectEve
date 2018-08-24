@@ -12,7 +12,7 @@ class Eve:
     _classes = {}
     _config = {}
 
-    _eve_conf_file = 'eve.conf'
+    _eve_cfg_file = '.eve.cfg'
 
     _eve_system_str = 'system'
     _eve_system_desc = 'eve system operations'
@@ -48,7 +48,7 @@ class Eve:
         self._config['modules'] = []
 
         parser = configparser.ConfigParser()
-        parser.read(self._eve_conf_file)
+        parser.read(self._eve_cfg_file)
         if 'modules' in parser:
             for m in parser['modules']:
                 if parser['modules'][m]:
@@ -105,7 +105,7 @@ class Eve:
             for k, v in m.__classmap__.items():
                 if k in classes:
                     writer.set(mod_classes, k, v)
-        with open(self._eve_conf_file, "w") as configfile:
+        with open(self._eve_cfg_file, "w") as configfile:
             writer.write(configfile)
 
     def __parse(self):
