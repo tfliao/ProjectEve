@@ -20,10 +20,7 @@ class Eve:
     def __init__(self):
         self._script = os.path.basename(__file__)
         self.__load_config()
-        self.__load_classes()
         cls = self.__parse()
-        print(self._modules)
-        print(self._classes)
         if cls is not None:
             self.__exec(cls)
         pass
@@ -53,23 +50,24 @@ class Eve:
             for m in parser['modules']:
                 if parser['modules'][m]:
                     self._config['modules'].append(m)
-        pass
-
-    def __load_classes(self):
-        modules = map(__import__, self._config['modules'])
-        for m in modules:
-            mod = {'name': m.__name__,
-                   'desc': m.__desc__,
+        for m in self._config['modules']:
+            mod_class = m + '.classes'
+            mod = {'name': m,
+                   'desc': None,
                    'classes': [] }
-            self._modules[m.__name__] = mod
-            for k, v in m.__classmap__.items():
-                self._modules[m.__name__]['classes'].append(k)
-                if k not in self._classes:
-                    cls = { 'name': k,
-                            'classname': v,
-                            'modules': [] }
-                    self._classes[k] = cls
-                self._classes[k]['modules'].append(m.__name__)
+            if m in parser:
+                mod['desc'] = parser[m].get('desc', None)
+            self._modules[m] = mod
+
+            if mod_class in parser:
+                for c in parser[mod_class]:
+                    if c not in self._classes:
+                        cls = { 'name': c,
+                                'classname': parser[mod_class][c],
+                                'modules': [] }
+                        self._classes[c] = cls
+                    self._classes[c]['modules'].append(m)
+        pass
 
     def __system(self):
         args = sys.argv
@@ -96,7 +94,7 @@ class Eve:
         modules = map(__import__, self._config['modules'])
         for m in modules:
             writer.add_section(m.__name__)
-            writer.set(m.__name__, "__desc__", m.__desc__)
+            writer.set(m.__name__, "desc", m.__desc__)
 
             mod_classes = m.__name__ + ".classes"
             writer.add_section(mod_classes)
