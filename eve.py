@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # vim: set expandtab:
 
 import os, sys
@@ -69,6 +69,7 @@ class Eve:
                                 'modules': [] }
                         self._classes[c] = cls
                     self._classes[c]['modules'].append(m)
+                    self._modules[m]['classes'].append(c)
         pass
 
     def __system(self):
