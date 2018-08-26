@@ -20,6 +20,8 @@ class Eve:
     def __init__(self):
         self._script = os.path.basename(__file__)
         self.__load_config()
+
+    def run(self):
         cls = self.__parse()
         if cls is not None:
             self.__exec(cls)
@@ -177,5 +179,5 @@ class Eve:
         pass
 
 if __name__ == '__main__':
-    Eve()
+    Eve().run()
 
