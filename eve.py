@@ -12,12 +12,21 @@ class Eve:
     _classes = {}
     _config = {}
 
-    _eve_cfg_file = '.eve.cfg'
+    _eve_cfg_def = '.eve.cfg'
+    _eve_cfg_key = 'EVE_CFG'
+    _eve_cfg = None
 
     _eve_system_str = 'system'
     _eve_system_desc = 'eve system operations'
 
     def __init__(self):
+        script_dir=os.path.dirname(os.path.realpath(sys.argv[0]))
+        sys.path.append(script_dir)
+
+        self._eve_cfg = os.environ.get(self._eve_cfg_key, self._eve_cfg_def)
+        if not self._eve_cfg.startswith('/'):
+            self._eve_cfg = '{}/{}'.format(script_dir, self._eve_cfg)
+
         self._script = os.path.basename(__file__)
         self.__load_config()
 
@@ -47,7 +56,7 @@ class Eve:
         self._config['modules'] = []
 
         parser = configparser.ConfigParser()
-        parser.read(self._eve_cfg_file)
+        parser.read(self._eve_cfg)
         if 'modules' in parser:
             for m in parser['modules']:
                 if parser['modules'][m]:
@@ -106,7 +115,7 @@ class Eve:
             for k, v in m.__classmap__.items():
                 if k in classes:
                     writer.set(mod_classes, k, v)
-        with open(self._eve_cfg_file, "w") as configfile:
+        with open(self._eve_cfg, "w") as configfile:
             writer.write(configfile)
 
     def __parse(self):
