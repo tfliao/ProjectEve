@@ -16,6 +16,10 @@ class Eve:
     _eve_cfg_key = 'EVE_CFG'
     _eve_cfg = None
 
+    _eve_db_def = '.eve.db'
+    _eve_db_key = 'EVE_DB'
+    _eve_db = None
+
     _eve_system_str = 'system'
     _eve_system_desc = 'eve system operations'
 
@@ -26,6 +30,10 @@ class Eve:
         self._eve_cfg = os.environ.get(self._eve_cfg_key, self._eve_cfg_def)
         if not self._eve_cfg.startswith('/'):
             self._eve_cfg = '{}/{}'.format(script_dir, self._eve_cfg)
+
+        self._eve_db = os.environ.get(self._eve_db_key, self._eve_db_def)
+        if not self._eve_db.startswith('/'):
+            self._eve_db = '{}/{}'.format(script_dir, self._eve_db)
 
         self._script = os.path.basename(__file__)
         self.__load_config()
@@ -163,6 +171,7 @@ class Eve:
     def __exec(self, cls):
         m = importlib.import_module('{}.{}'.format(cls['module'], cls['name']))
         c = getattr(m, cls['classname'])(cls['name'], cls['prefix'], cls['classname'])
+        c.set_dbfile(self._eve_db)
         c.run()
 
     # eve <cr> | ? | --help | -h | (unknown module)

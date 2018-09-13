@@ -1,7 +1,10 @@
 #!/usr/bin/python
+# vim: set expandtab:
 import argparse
 import logging
 import os, sys
+
+from eve.database import EveDB
 
 class CmdBase:
    _prefix = None
@@ -15,6 +18,9 @@ class CmdBase:
    _defaultlogfile = 'stderr'
 
    _logger = None
+
+   _dbconn = None
+   _dbfile = None
 
    def __init__(self, prog, version, desc = None, prefix = None, loggername = None):
       self._prefix = prefix
@@ -34,6 +40,20 @@ class CmdBase:
    def __debug(self):
       self.logdebug('prog: {}, version: {}'.format(self._prog, self._version))
       self.logdebug('arg parsed: ' + str(self._args))
+
+   ### start of db facilities ##
+   def set_dbfile(self, dbfile):
+      self._dbfile = dbfile
+
+   def _db(self):
+      if self._dbconn is None:
+         if self._dbfile is None:
+            raise
+         self._dbconn = EveDB(self._dbfile)
+         self._dbconn.set_namespace(self._prog)
+      return self._dbconn
+
+   ### end of db facilities ##
 
    ### start of parser facilities ###
    @staticmethod
