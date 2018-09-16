@@ -33,7 +33,7 @@ class EveDB:
 
     def __evedb_set(self, key, value):
         sql = self._eve_tbl_update.format(self._eve_tbl)
-        self.execute(sql, (key, value))
+        self.execute(sql, (key, str(value)))
 
     def __evedb_get(self, key):
         sql = self._eve_tbl_select.format(self._eve_tbl)
@@ -41,7 +41,7 @@ class EveDB:
         if len(r) == 0:
             return None
         else:
-            return r[0][0]
+            return r[0]['version']
 
     def __full_table_name(self, table):
         return '{}_{}'.format(self._namespace, table)
@@ -61,7 +61,7 @@ class EveDB:
         c.execute(query, args)
         r = []
         for x in c.fetchall():
-            r.append(tuple(x))
+            r.append(dict(zip(x.keys(),x)))
         c.close()
         self._conn.commit()
         return r;
@@ -150,7 +150,7 @@ class EveDB:
         keys = ['`{}`'.format(key) for key in keyvalue.keys()]
         valueholder = ','.join(['?'] * len(keys))
         values = tuple(keyvalue.values())
-        
+
         sql = base_query.format(table, ','.join(keys), valueholder)
         self.execute(sql, values)
 
@@ -160,7 +160,7 @@ class EveDB:
             'key': 'value', ...
         }
         """
-        base_query = 'SELECT * FROM `{}`' 
+        base_query = 'SELECT * FROM `{}`'
         condition = ''
         args = ()
 
@@ -177,9 +177,8 @@ class EveDB:
             args = tuple(keyvalue.values())
 
         sql = base_query.format(table) + condition
-        print(sql)
         return self.execute(sql, args)
-        
+
     def _dump_table(self, table = None, limit=None):
         c = self._conn.cursor()
         c.execute("SELECT name FROM sqlite_master WHERE name = ?", (table,))
