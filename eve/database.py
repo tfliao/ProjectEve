@@ -41,7 +41,7 @@ class EveDB:
         if len(r) == 0:
             return None
         else:
-            return r[0]['version']
+            return r[0]['value']
 
     def __full_table_name(self, table):
         return '{}_{}'.format(self._namespace, table)
