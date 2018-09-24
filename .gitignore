@@ -1,3 +1,7 @@
 *.pyc
+.*
 .gitignore
 *.swp
+.eve.db
+.eve.cfg
+
