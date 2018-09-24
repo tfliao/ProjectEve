@@ -111,6 +111,8 @@ class Eve:
         for m in self._config['modules']:
             writer.set('modules', m, 'True')
 
+        class_cnt = 0
+        module_cnt = 0
         modules = map(__import__, self._config['modules'])
         for m in modules:
             writer.add_section(m.__name__)
@@ -118,13 +120,17 @@ class Eve:
 
             mod_classes = m.__name__ + ".classes"
             writer.add_section(mod_classes)
-
+            module_cnt += 1
+            print('Scan module "{}" ... '.format(m.__name__))
             classes = m.__all__
             for k, v in m.__classmap__.items():
                 if k in classes:
                     writer.set(mod_classes, k, v)
+                    class_cnt += 1
+                    print('  Found class "{}"'.format(v))
         with open(self._eve_cfg, "w") as configfile:
             writer.write(configfile)
+        print("System Scan done, total {} classes within {} module(s)".format(class_cnt, module_cnt))
 
     def __parse(self):
         args = sys.argv
