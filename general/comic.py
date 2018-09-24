@@ -3,6 +3,7 @@
 import argparse
 import requests
 import re
+import unicodedata
 
 from cmdbase import CmdBase
 
@@ -47,7 +48,7 @@ class Comic(CmdBase):
             raise
         name_pattern = r'<h1>(.*?)</h1>'
         date_pattern = r'最近于 \[<span class="red">(\d{4}-\d\d-\d\d)</span>\]'
-        
+
         m = re.search(name_pattern, content)
         name = m.group(1) if m else None
         m = re.search(date_pattern, content)
@@ -83,8 +84,14 @@ class Comic(CmdBase):
         db = self._db()
         rows = db.table_select(self.__table)
         print('Total {} records'.format(len(rows)))
+
         for row in rows:
-            print('{:4d} | {:20} | {}'.format(row['id'], row['name'], row['url']))
+            width = 40
+            name = row['name']
+            name_width = sum(unicodedata.east_asian_width(x) in ('F', 'W') for x in name)
+            name_fmt = '{{:{}}}'.format(width - name_width)
+            name = name_fmt.format(name)
+            print('{:4d} | {} | {} | {}'.format(row['id'], name, row['last_update'], row['url']))
 
         pass
 
@@ -135,9 +142,9 @@ class Comic(CmdBase):
             name = row['name']
             url = row['url']
             last_update = row['last_update']
-            
+
             r = self.__scan_url(url)
-            update = r[1] 
+            update = r[1]
             if update != last_update:
                 update_cnt
                 print('{} updated from {} to {}, url: {}'.format(name, last_update, update, url))
