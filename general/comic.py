@@ -145,10 +145,14 @@ class Comic(CmdBase):
 
             r = self.__scan_url(url)
             update = r[1]
+            print('Checking {} ... '.format(name), end='')
             if update != last_update:
-                update_cnt
-                print('{} updated from {} to {}, url: {}'.format(name, last_update, update, url))
+                update_cnt += 1
+                print()
+                print('> updated from {} to {}, url: {}'.format(last_update, update, url))
                 db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update})
+            else:
+                print('nothing new')
         self.loginfo('Total {} comic updated'.format(update_cnt))
         pass
 
