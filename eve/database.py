@@ -14,7 +14,6 @@ class EveDB:
     _eve_tbl_update = 'INSERT OR REPLACE INTO {} (`key`, `value`) VALUES (?, ?)'
     _eve_tbl_select = 'SELECT `value` FROM {} WHERE `key` = ?'
 
-
     def __init__(self, dbfile):
         if dbfile is None:
             raise
@@ -154,6 +153,52 @@ class EveDB:
         sql = base_query.format(table, ','.join(keys), valueholder)
         self.execute(sql, values)
 
+    def table_delete(self, table, keyvalue, expected_row):
+        """
+        keyvalue: {
+            'key': 'value', ...
+        }
+        """
+        base_query = 'DELETE FROM `{}`'
+        condition, args = self.__build_conditions(keyvalue)
+
+        if self.table_count(table, keyvalue) != expected_row:
+            return False
+
+        table = self.__full_table_name(table)
+        sql = base_query.format(table) + condition
+        self.execute(sql, args)
+        return True
+
+    def __table_func(self, table, func, key = None, keyvalue = None):
+        """
+        func in ['COUNT', 'MAX', 'MIN']
+        key = `key` of * if None
+        keyvalue: {
+            'key': 'value', ...
+        }
+        """
+        if func.lower() not in ['count', 'max', 'min']:
+            return None
+        key = '*' if key is None else '`{}`'.format(key)
+
+        base_query = 'SELECT {}({}) AS res FROM `{}`'
+        condition, args = self.__build_conditions(keyvalue)
+
+        table = self.__full_table_name(table)
+        sql = base_query.format(func, key, table) + condition
+        r = self.execute(sql, args)
+        return r[0]['res']
+
+    def table_count(self, table, keyvalue = None):
+        return self.__table_func(table, 'count', None, keyvalue)
+
+    def table_max(self, table, key, keyvalue = None):
+        return self.__table_func(table, 'max', key, keyvalue)
+
+    def table_min(self, table, key, keyvalue = None):
+        return self.__table_func(table, 'min', key, keyvalue)
+
     def table_select(self, table, keyvalue = None):
         """
         keyvalue: {
@@ -161,11 +206,15 @@ class EveDB:
         }
         """
         base_query = 'SELECT * FROM `{}`'
-        condition = ''
-        args = ()
+        condition, args = self.__build_conditions(keyvalue)
 
         table = self.__full_table_name(table)
+        sql = base_query.format(table) + condition
+        return self.execute(sql, args)
 
+    def __build_conditions(self, keyvalue):
+        condition = ''
+        args = ()
         if keyvalue is not None:
             conds = []
             for k in keyvalue.keys():
@@ -175,21 +224,19 @@ class EveDB:
                 conds.append('`{}` {} ?'.format(k, op))
             condition = ' WHERE ' + ' AND '.join(conds)
             args = tuple(keyvalue.values())
-
-        sql = base_query.format(table) + condition
-        return self.execute(sql, args)
+        return (condition, args)
 
     def _dump_table(self, table = None, limit=None):
         c = self._conn.cursor()
         c.execute("SELECT name FROM sqlite_master WHERE name = ?", (table,))
         r = c.fetchone()
         if r is None:
-            __class__._logger().error("No table named '{}'".format(table))
+            print("No table named '{}'".format(table))
             raise
         c.execute("SELECT * FROM `{}`".format(table))
         r = c.fetchone()
         if r is None:
-            __class__._logger().error("table '{}' is empty".format(table))
+            print("table '{}' is empty".format(table))
             return
 
         limit = 10 if limit is None else int(limit)
