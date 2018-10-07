@@ -28,6 +28,9 @@ __classmap__ = {
         'filename': 'ClassName',
         ...
     }
+__alias__ = {
+        'shortname': 'filename'
+    }
 ```
 
 ### Writing a new command (class)

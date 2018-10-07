@@ -6,4 +6,6 @@ __classmap__ = {
         'image_downloader': 'ImageDownloader',
         'comic': 'Comic',
         }
-
+__alias__ = {
+        'fl': 'filelist',
+        }

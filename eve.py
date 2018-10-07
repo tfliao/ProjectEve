@@ -71,6 +71,7 @@ class Eve:
                     self._config['modules'].append(m)
         for m in self._config['modules']:
             mod_class = m + '.classes'
+            mod_alias = m + ".alias"
             mod = {'name': m,
                    'desc': None,
                    'classes': [] }
@@ -87,6 +88,13 @@ class Eve:
                         self._classes[c] = cls
                     self._classes[c]['modules'].append(m)
                     self._modules[m]['classes'].append(c)
+            if mod_alias in parser:
+                for a in parser[mod_alias]:
+                    c = parser[mod_alias][a]
+                    if c in self._classes:
+                        self._classes[a] = self._classes[c]
+                    self._classes[a]['modules'].append(m)
+                    self._modules[m]['classes'].append(a)
         pass
 
     def __system(self):
@@ -119,7 +127,9 @@ class Eve:
             writer.set(m.__name__, "desc", m.__desc__)
 
             mod_classes = m.__name__ + ".classes"
+            mod_alias = m.__name__ + ".alias"
             writer.add_section(mod_classes)
+            writer.add_section(mod_alias)
             module_cnt += 1
             print('Scan module "{}" ... '.format(m.__name__))
             classes = m.__all__
@@ -128,6 +138,10 @@ class Eve:
                     writer.set(mod_classes, k, v)
                     class_cnt += 1
                     print('  Found class "{}"'.format(v))
+            for k, v in m.__alias__.items():
+                if v in classes:
+                    writer.set(mod_alias, k, v)
+                    print('  Found alias "{}"'.format(k))
         with open(self._eve_cfg, "w") as configfile:
             writer.write(configfile)
         print("System Scan done, total {} classes within {} module(s)".format(class_cnt, module_cnt))
