@@ -138,10 +138,11 @@ class Eve:
                     writer.set(mod_classes, k, v)
                     class_cnt += 1
                     print('  Found class "{}"'.format(v))
-            for k, v in m.__alias__.items():
-                if v in classes:
-                    writer.set(mod_alias, k, v)
-                    print('  Found alias "{}"'.format(k))
+            if hasattr(m, '__alias__'):
+                for k, v in m.__alias__.items():
+                    if v in classes:
+                        writer.set(mod_alias, k, v)
+                        print('  Found alias "{}"'.format(k))
         with open(self._eve_cfg, "w") as configfile:
             writer.write(configfile)
         print("System Scan done, total {} classes within {} module(s)".format(class_cnt, module_cnt))
