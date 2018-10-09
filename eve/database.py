@@ -81,7 +81,6 @@ class EveDB:
         table = self.__full_table_name(table)
         primaries = []
         columns = []
-        extra = ''
         if not isinstance(schema, list):
             raise 'schema format error'
         for c in schema:

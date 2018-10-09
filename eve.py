@@ -2,6 +2,7 @@
 # vim: set expandtab:
 
 import os, sys
+import copy
 import importlib
 import configparser
 
@@ -91,9 +92,12 @@ class Eve:
             if mod_alias in parser:
                 for a in parser[mod_alias]:
                     c = parser[mod_alias][a]
-                    if c in self._classes:
-                        self._classes[a] = self._classes[c]
-                    self._classes[a]['modules'].append(m)
+                    if c not in self._classes:
+                        continue
+                    if a not in self._classes:
+                        self._classes[a] = copy.deepcopy(self._classes[c])
+                    else:
+                        self._classes[a]['modules'].append(m)
                     self._modules[m]['classes'].append(a)
         pass
 
