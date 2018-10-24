@@ -77,13 +77,16 @@ class CmdBase:
          kwargs['description'] = self._desc
 
       parser = argparse.ArgumentParser(**kwargs)
-      parser.add_argument('--version', action=self.action_version(self._version),
+      group = parser.add_argument_group('misc options')
+      group.add_argument('--version', action=self.action_version(self._version),
             nargs=0, help='print version and exit')
-      parser.add_argument('--quiet', '-q', default=False, action='store_true',
+      group.add_argument('--quiet', '-q', default=False, action='store_true',
             help='quiet mode. shortcut to turn off log, equal to --logfile none')
-      parser.add_argument('--logfile', default=self._defaultlogfile,
+      group.add_argument('--debug', default=False, action='store_true',
+            help='debug mode. shortcut to enable debug, equal to --loglevel DEBUG')
+      group.add_argument('--logfile', default=self._defaultlogfile,
             help='log file name for progress, special keyword: (stderr, stdout, none)')
-      parser.add_argument('--loglevel', default=logging.INFO,
+      group.add_argument('--loglevel', default=logging.INFO,
             help='set loglevel, default: INFO')
       return parser
 
@@ -122,7 +125,7 @@ class CmdBase:
 
    def __init_logger(self):
       args = self._args
-      loglevel = args.loglevel
+      loglevel = args.loglevel if not args.debug else 'DEBUG'
       logfile = args.logfile if not args.quiet else 'none'
 
       if self._loggername is None:
@@ -137,7 +140,7 @@ class CmdBase:
          sys.stderr.write(str(e) + ', fallback to INFO\n')
          logger.setLevel(logging.INFO)
 
-      if logfile == 'one':
+      if logfile == 'none':
          handler = logging.NullHandler()
       elif logfile == 'stderr':
          handler = logging.StreamHandler(sys.stderr)
