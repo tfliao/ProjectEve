@@ -10,7 +10,7 @@ In eve system, all command inherit cmdbase, which provide basic feature for comm
 ## setup
 1. clone Project Eve `git clone https://github.com/tfliao/ProjectEve.git`
 2. link eve.py to your bin path `ln -s /path/to/ProjectEve/eve.py /path/to/bin/path/eve`
-3. copy eve.cfg.default to .eve.cfg under ProjectEve, and run `eve system scan` to update config.
+3. if config file not exists, eve will generate on from template (eve.cfg.default)
     * in case new module/class added to eve syetem, your need to run this command to make eve be able to find them.
 
 ## Usage

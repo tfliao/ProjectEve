@@ -13,6 +13,7 @@ class Eve:
     _classes = {}
     _config = {}
 
+    _eve_cfg_template = 'eve.cfg.default'
     _eve_cfg_def = '.eve.cfg'
     _eve_cfg_key = 'EVE_CFG'
     _eve_cfg = None
@@ -28,6 +29,7 @@ class Eve:
         script_dir=os.path.dirname(os.path.realpath(sys.argv[0]))
         sys.path.append(script_dir)
 
+        self._eve_cfg_template = '{}/{}'.format(script_dir, self._eve_cfg_template)
         self._eve_cfg = os.environ.get(self._eve_cfg_key, self._eve_cfg_def)
         if not self._eve_cfg.startswith('/'):
             self._eve_cfg = '{}/{}'.format(script_dir, self._eve_cfg)
@@ -37,7 +39,13 @@ class Eve:
             self._eve_db = '{}/{}'.format(script_dir, self._eve_db)
 
         self._script = os.path.basename(__file__)
-        self.__load_config()
+        if os.path.isfile(self._eve_cfg):
+            self.__load_config(self._eve_cfg)
+        else:
+            print('config file not exists, generate from template')
+            self.__load_config(self._eve_cfg_template)
+            self.__system_scan()
+            self.__load_config(self._eve_cfg)
 
     def run(self):
         cls = self.__parse()
@@ -61,11 +69,14 @@ class Eve:
         return True
     ### end of helper functions ###
 
-    def __load_config(self):
+    def __load_config(self, cfg_file):
         self._config['modules'] = []
+        _modules = {}
+        _classes = {}
 
         parser = configparser.ConfigParser()
-        parser.read(self._eve_cfg)
+        parser.read(cfg_file)
+
         if 'modules' in parser:
             for m in parser['modules']:
                 if parser['modules'][m]:
@@ -150,6 +161,7 @@ class Eve:
         with open(self._eve_cfg, "w") as configfile:
             writer.write(configfile)
         print("System Scan done, total {} classes within {} module(s)".format(class_cnt, module_cnt))
+        print("Config update to {}".format(self._eve_cfg))
 
     def __parse(self):
         args = sys.argv
