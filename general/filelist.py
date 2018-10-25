@@ -19,8 +19,9 @@ class FileList(CmdBase):
       self.__binaries = []
 
    def _run(self):
-      self.__get_files()
-      self.__do_operation()
+      if not self.__get_files():
+           return 1
+      return self.__do_operation()
 
    def _prepare_parser(self, parser):
       parser.add_argument('--single', '-1', default=False, action='store_true',
@@ -56,7 +57,7 @@ class FileList(CmdBase):
          lines = subprocess.check_output(cmd).decode('UTF-8').split('\n')
       except subprocess.CalledProcessError:
          self.__files = []
-         return
+         return False
 
       # handle binary files
       binaries = []
@@ -87,6 +88,7 @@ class FileList(CmdBase):
 
       self.__files = files
       self.__binaries = binaries
+      return True
 
    def __do_operation(self):
       args = self._args
@@ -107,7 +109,7 @@ class FileList(CmdBase):
          vim_opt = '-R' if args.readonly else ''
          cmd = 'vim -p {} {}'.format(vim_opt, ' '.join(files))
          os.system(cmd)
-         sys.exit(0)
+         return 0
 
       if args.single:
          for f in files:
@@ -116,6 +118,7 @@ class FileList(CmdBase):
             print(b + ' (binary file)')
       else:
          print(' '.join(files + binaries))
+      return 0
 
 if __name__ == '__main__':
    FileList('FileList').run()

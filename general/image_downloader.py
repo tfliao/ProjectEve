@@ -25,8 +25,7 @@ class ImageDownloader(CmdBase):
          sys.exit(1)
       self.__scan_file()
       self.__filter_images()
-      self.__download()
-      pass
+      return self.__download()
 
    def _prepare_parser(self, parser):
       parser.add_argument('--filter', '-f', default=[], action='append',
@@ -101,7 +100,7 @@ class ImageDownloader(CmdBase):
             os.makedirs(outdir)
          except:
             self.logerror('Failed to create directory {}'.format(outdir))
-            sys.exit(1)
+            return 1
 
       success = 0
       failure = 0
@@ -129,6 +128,7 @@ class ImageDownloader(CmdBase):
                   format(success, failure, skipped, total_imgs))
 
       self.loginfo('Total {} file(s) in {} download successful'.format(success, total_imgs))
+      return 0
 
 if __name__ == '__main__':
    ImageDownloader('ID').run()

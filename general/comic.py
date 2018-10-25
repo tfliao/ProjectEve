@@ -65,13 +65,13 @@ class Comic(CmdBase):
         args = self._args
         self.__setup_db()
         if args.action == 'list':
-            self.run_list()
+            return self.run_list()
         elif args.action == 'add':
-            self.run_add()
+            return self.run_add()
         elif args.action == 'del':
-            self.run_del()
+            return self.run_del()
         elif args.action == 'scan':
-            self.run_scan()
+            return self.run_scan()
         else:
             raise
 
@@ -93,7 +93,7 @@ class Comic(CmdBase):
             name = name_fmt.format(name)
             print('{:4d} | {} | {} | {}'.format(row['id'], name, row['last_update'], row['url']))
 
-        pass
+        return 0
 
     def run_add(self):
         args = self._args
@@ -101,16 +101,16 @@ class Comic(CmdBase):
 
         if args.url is None:
             self.logerror('url is required for action [add]')
-            return
+            return 1
         r = self.__scan_url(args.url)
         if r is None:
             self.logerror('not acceptable url to add')
-            return
+            return 1
         max_id = db.table_max(self.__table, 'id')
         next_id = 1 if max_id is None else max_id + 1
         db.table_update(self.__table, {'id': next_id, 'name': r[0], 'url': args.url, 'last_update': r[1]})
         self.loginfo('comic [{}] with url:[{}] added'.format(r[0], args.url))
-        pass
+        return 0
 
     def run_del(self):
         args = self._args
@@ -118,19 +118,20 @@ class Comic(CmdBase):
 
         if args.id is None:
             self.logerror('id is required for action [del]')
-            return
+            return 1
+
         r = db.table_count(self.__table, {'id': args.id})
         if r == 0:
             self.logerror('No record with such id [{}]'.format(args.id))
-            return
+            return 1
 
         r = db.table_delete(self.__table, {'id': args.id}, 1)
         if not r:
             self.logerror('Failed to delete record with id:[{}]'.format(args.id))
-            return
-        else:
-            self.loginfo('Record with id:[{}] deleted'.format(args.id))
-        pass
+            return 1
+
+        self.loginfo('Record with id:[{}] deleted'.format(args.id))
+        return 0
 
     def run_scan(self):
         db = self._db()
@@ -154,7 +155,7 @@ class Comic(CmdBase):
             else:
                 print('nothing new')
         self.loginfo('Total {} comic updated'.format(update_cnt))
-        pass
+        return 0
 
 if __name__ == '__main__':
     Comic('Comic').run()
