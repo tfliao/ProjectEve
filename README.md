@@ -52,7 +52,7 @@ class Command(CmdBase):
 ```
 * `__init__`: constructor, pass through arguments to CmdBase
 * `_prepare_parser`: add extra options for parse
-* `_run`: if nothing wrong during parsing, this function will do the main logic according to option
+* `_run`: if nothing wrong during parsing, this function will do the main logic according to option, return value will become exitcode
 * `args = self._args`: in most case, you need only to access this member to get the parsed result for further operations
 
 After this functions implemented, add this function to `__init__.py` and rescan, so that eve can know this class.

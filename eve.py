@@ -25,6 +25,9 @@ class Eve:
     _eve_system_str = 'system'
     _eve_system_desc = 'eve system operations'
 
+    EXITCODE_SUCC = 0
+    EXITCODE_FAIL = 1
+
     def __init__(self):
         script_dir=os.path.dirname(os.path.realpath(sys.argv[0]))
         sys.path.append(script_dir)
@@ -49,9 +52,9 @@ class Eve:
 
     def run(self):
         cls = self.__parse()
-        if cls is not None:
-            self.__exec(cls)
-        pass
+        if isinstance(cls, dict):
+            return self.__exec(cls)
+        return cls
 
     ### helper functions ###
     def is_help(self, arg):
@@ -116,17 +119,18 @@ class Eve:
         args = sys.argv
         if len(args) == 2 or self.is_help(args[2]):
             self.__help_system()
+            return Eve.EXITCODE_SUCC
         elif args[2] == 'scan':
-            self.__system_scan()
+            return self.__system_scan()
         else:
             self.__help_system()
+            return Eve.EXITCODE_FAIL
 
     # eve system <cr> | ? | -h | --help | (unknown feature)
     def __help_system(self):
         features = ['scan']
         print('Usage: {} {} ({}) ' \
             .format(self._script, self._eve_system_str, '|'.join(features)))
-        pass
 
     def __system_scan(self):
         writer = configparser.RawConfigParser()
@@ -162,20 +166,20 @@ class Eve:
             writer.write(configfile)
         print("System Scan done, total {} classes within {} module(s)".format(class_cnt, module_cnt))
         print("Config update to {}".format(self._eve_cfg))
+        return Eve.EXITCODE_SUCC
 
     def __parse(self):
         args = sys.argv
         if len(args) == 1 or self.is_help(args[1]):
             self.__help()
-            return None
+            return Eve.EXITCODE_SUCC
         elif args[1] == self._eve_system_str:
-            self.__system()
-            return None
+            return self.__system()
         elif self.is_module(args[1]):
             prefix = '{} {}'.format(args[0], args[1])
             if len(args) == 2 or self.is_help(args[2]):
                 self.__help_module(args[1])
-                return None
+                return Eve.EXITCODE_SUCC
             elif self.is_class(args[2]):
                 cls = self._classes[args[2]]
                 cls['prefix'] = prefix
@@ -188,7 +192,7 @@ class Eve:
                 self.__help_module(args[1],
                         'Unknown class "{}" in module "{}"'
                         .format(args[2], args[1]))
-                return None
+                return Eve.EXITCODE_FAIL
         elif self.is_class(args[1]):
             cls = self._classes[args[1]]
             if len(cls['modules']) == 1:
@@ -200,10 +204,10 @@ class Eve:
             else:
                 self.__help('class "{}" belong to multiple modules: {}'
                             .format(cls['name'], ', '.join(cls['modules'])))
-                return None
+                return Eve.EXITCODE_FAIL
         else:
             self.__help('Unknown module/class "{}"'.format(args[1]))
-            return None
+            return Eve.EXITCODE_FAIL
 
     def __exec(self, cls):
         m = importlib.import_module('{}.{}'.format(cls['module'], cls['name']))
@@ -235,5 +239,6 @@ class Eve:
         pass
 
 if __name__ == '__main__':
-    Eve().run()
+    r = Eve().run()
+    sys.exit(r)
 
