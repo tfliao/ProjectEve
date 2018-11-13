@@ -213,7 +213,7 @@ class Eve:
         m = importlib.import_module('{}.{}'.format(cls['module'], cls['name']))
         c = getattr(m, cls['classname'])(cls['name'], cls['prefix'], cls['classname'])
         c.set_dbfile(self._eve_db)
-        c.run()
+        return c.run()
 
     # eve <cr> | ? | --help | -h | (unknown module)
     def __help(self, msg = None):

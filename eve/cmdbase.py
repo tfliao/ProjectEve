@@ -34,8 +34,7 @@ class CmdBase:
       self.__parse()
       self.__init_logger()
       self.__debug()
-      self._run()
-      pass
+      return self._run()
 
    def __debug(self):
       self.logdebug('prog: {}, version: {}'.format(self._prog, self._version))
