@@ -4,6 +4,7 @@ import argparse
 import subprocess
 import datetime
 import time
+import os
 
 from cmdbase import CmdBase
 
@@ -15,15 +16,19 @@ class Wait(CmdBase):
     def __init__(self, prog = None, prefix = None, loggername = None):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
 
-    def __check_pid(self, pid):
+    def __run_ps(self):
         cmd = ['ps', 'ao', 'pid,command']
         lines = []
         try:
             self.logdebug("run cmd: " + str(cmd))
             lines = subprocess.check_output(cmd).decode().split('\n')
         except subprocess.CalledProcessError:
-            return 1
-        for line in lines:
+            return []
+        return lines
+
+
+    def __check_pid(self, pid):
+        for line in self.__run_ps():
             if len(line) == 0:
                 continue
             p = line[0:5]
@@ -33,9 +38,35 @@ class Wait(CmdBase):
 
         return None
 
+    def __target_to_pid(self):
+        args = self._args
+        target = args.target
+        if not args.command:
+            return int(target)
+        else:
+            mypid = os.getpid();
+            cands = []
+            for line in self.__run_ps():
+                if len(line) == 0:
+                    continue
+                p = line[0:5]
+                c = line[6:]
+                if p != '  PID' and int(p) != mypid and c.find(target) != -1:
+                    cands.append(line)
+
+            if len(cands) == 0:
+                return -1
+            if len(cands) == 1:
+                return int(cands[0][0:5])
+            else:
+                for cand in cands:
+                    print(cand)
+                r = self.prompt('More than one process match, please specify one')
+                return int(r)
+
     def _run(self):
         args = self._args
-        pid = args.pid
+        pid = self.__target_to_pid()
         timeout = args.timeout if args.timeout != 0 else 86400
         delay = args.delay
 
@@ -72,8 +103,12 @@ class Wait(CmdBase):
         return 0
 
     def _prepare_parser(self, parser):
-        # eve wait <pid>
-        parser.add_argument('pid', type=int, help='specify pid to wait')
+        # eve wait <target>
+        #   target: pid
+        #           cmd if -c given
+        parser.add_argument('target', help='specify target (pid or cmd) to wait')
+        parser.add_argument('--command', '-c', action='store_true', default=False,
+                            help='wait process match cmd')
         parser.add_argument('--nofail', action='store_true', default=False,
                             help='no fail if process not exists in the beginning')
         parser.add_argument('--delay', '-d', default=10, type=int,

@@ -175,11 +175,6 @@ class CmdBase:
       elif default is not None:
          option_str = '(' + default + ')'
 
-      try: # compatible for python2/3
-         input = raw_input
-      except NameError:
-         pass
-
       accept_input = False
       while not accept_input:
          # sys.stderr.write(msg + option_str + ' ')
