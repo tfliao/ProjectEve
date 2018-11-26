@@ -43,6 +43,8 @@ class Command(CmdBase):
     desc = ''
     def __init__(self, prog = None, prefix = None, loggername = None):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
+        self._add_required('external-program')
+
     def _prepare_parser(self, parser):
         # add new options for argparse
 
@@ -51,6 +53,7 @@ class Command(CmdBase):
         # main logic goes here
 ```
 * `__init__`: constructor, pass through arguments to CmdBase
+* `_add_required`: add external program dependency, eve will check before running into cmd logic
 * `_prepare_parser`: add extra options for parse
 * `_run`: if nothing wrong during parsing, this function will do the main logic according to option, return value will become exitcode
 * `args = self._args`: in most case, you need only to access this member to get the parsed result for further operations

@@ -15,6 +15,7 @@ class Wait(CmdBase):
 
     def __init__(self, prog = None, prefix = None, loggername = None):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
+        self._add_required('ps')
 
     def __run_ps(self):
         cmd = ['ps', 'ao', 'pid,command']

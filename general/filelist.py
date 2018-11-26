@@ -15,6 +15,7 @@ class FileList(CmdBase):
 
    def __init__(self, prog = None, prefix = None, loggername = None):
       CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
+      self._add_required('grep')
       self.__files = []
       self.__binaries = []
 

@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os, sys
+import subprocess
 
 from eve.database import EveDB
 
@@ -19,6 +20,8 @@ class CmdBase:
 
    _logger = None
 
+   _required = []
+
    _dbconn = None
    _dbfile = None
 
@@ -34,11 +37,29 @@ class CmdBase:
       self.__parse()
       self.__init_logger()
       self.__debug()
+      self.__check_required()
       return self._run()
 
    def __debug(self):
       self.logdebug('prog: {}, version: {}'.format(self._prog, self._version))
       self.logdebug('arg parsed: ' + str(self._args))
+
+
+   ### start of requirement check ###
+   def _add_required(self, prog):
+      self.logdebug('add required program [{}]'.format(prog))
+      self._required.append(prog)
+
+   def __check_required(self):
+      for p in self._required:
+         try:
+            cmd = ['which', p]
+            subprocess.check_call(cmd)
+         except subprocess.CalledProcessError:
+             self.logerror('Failed to find required program [{}], abort'.format(p))
+             sys.exit(1)
+
+   ### end of requirement check ###
 
    ### start of db facilities ##
    def set_dbfile(self, dbfile):
