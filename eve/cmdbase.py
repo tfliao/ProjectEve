@@ -54,7 +54,7 @@ class CmdBase:
       for p in self._required:
          try:
             cmd = ['which', p]
-            subprocess.check_call(cmd)
+            subprocess.check_output(cmd)
          except subprocess.CalledProcessError:
              self.logerror('Failed to find required program [{}], abort'.format(p))
              sys.exit(1)
