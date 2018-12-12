@@ -47,6 +47,7 @@ class Connect(CmdBase):
         db = self._db()
         res = db.table_select(self.__table)
         print('{:12} {}'.format('machine', 'target'))
+        print('------------ ------------')
         for r in res:
             target = self.__build_target_str(r['user'], r['addr'], r['port'])
             print('{:12} {}'.format(r['mach'], target))
@@ -123,7 +124,7 @@ class Connect(CmdBase):
 
 
         self.__setup_database()
-        if args.list:
+        if args.list or args.machine == 'list':
             return self.__run_list()
         elif args.alias is not None:
             return self.__run_alias()
@@ -136,13 +137,13 @@ class Connect(CmdBase):
         #                           --copykey # copy key before connect or after alias
         #                      --list # list servers
 
-        parser.add_argument('machine', help='specify machine to connect')
-        parser.add_argument('--alias', '-a', metavar='addr', help='make an ')
+        parser.add_argument('machine', help='specify machine to connect, given "list" will list all alias in db')
+        parser.add_argument('--alias', '-a', metavar='addr', help='make an alias of machine')
         parser.add_argument('--list', '-l', default=False, action='store_true', help='list exists aliases')
         parser.add_argument('--port', '-p', type=int, help='specify port, store with alias, or overwrite when connect')
         parser.add_argument('--user', '-u', help='specify user in remote server')
         parser.add_argument('--copykey', default=False, action='store_true', help='copy ssh key to remote server')
 
 if __name__ == '__main__':
-    Comic('Comic').run()
+    Connect('Connect').run()
 
