@@ -39,6 +39,32 @@ class Wait(CmdBase):
 
         return None
 
+    def __user_choose_pid(self, candidates):
+        shorten = False
+        pids = ['-1']
+        for line in candidates:
+            p = line[0:5]
+            c = line[6:]
+            pids.append(p.strip())
+            if len(c) > 64:
+                c = '{}... ({} chars)'.format(c[0:64], len(c))
+                shorten = True
+            print('{} {}'.format(p, c))
+
+        while True:
+            msg = 'More than one process match, please specify one pid\n'
+            if shorten:
+                msg += '  "full" to show full cmdline\n'
+            msg += '  -1 to cancel\n > '
+            r = self.prompt(msg).strip()
+            if r == 'full':
+                for line in candidates:
+                    print(line)
+                shorten = False
+            if r in pids:
+                return int(r)
+
+
     def __target_to_pid(self):
         args = self._args
         target = args.target
@@ -60,14 +86,14 @@ class Wait(CmdBase):
             if len(cands) == 1:
                 return int(cands[0][0:5])
             else:
-                for cand in cands:
-                    print(cand)
-                r = self.prompt('More than one process match, please specify one')
-                return int(r)
+                return self.__user_choose_pid(cands)
 
     def _run(self):
         args = self._args
         pid = self.__target_to_pid()
+        if pid < 0:
+            return (0 if args.nofail else 1)
+
         timeout = args.timeout if args.timeout != 0 else 86400
         delay = args.delay
 
