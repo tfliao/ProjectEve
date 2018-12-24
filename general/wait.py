@@ -18,7 +18,11 @@ class Wait(CmdBase):
         self._add_required('ps')
 
     def __run_ps(self):
-        cmd = ['ps', 'ao', 'pid,command']
+        param = 'ao'
+        if self._args.all:
+            param = 'axo'
+
+        cmd = ['ps', param, 'pid,command']
         lines = []
         try:
             self.logdebug("run cmd: " + str(cmd))
@@ -142,6 +146,8 @@ class Wait(CmdBase):
                             help='delay between checks')
         parser.add_argument('--timeout', '-t', default=0, type=int,
                             help='maximum wait time (default: 0)')
+        parser.add_argument('--all', '-a', default=False, action='store_true',
+                            help='consider process from all users')
 
 if __name__ == '__main__':
     Comic('Comic').run()
