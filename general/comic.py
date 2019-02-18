@@ -39,9 +39,17 @@ class Comic(CmdBase):
             db.table_create(self.__table, self.__schema, self.__table_version)
 
     def __scan_url(self, url):
+        headers = {
+                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'accept-encoding': 'gzip, deflate, br',
+                'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+                'cache-control': 'max-age=0',
+                'upgrade-insecure-requests': '1',
+                'user-agent': 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36',
+                }
         # return (name, date)
         try:
-            r = requests.get(url)
+            r = requests.get(url, headers = headers)
             content = r.content.decode()
         except Exception as e:
             self.logerror('Failed to get content from {}'.format(url))
