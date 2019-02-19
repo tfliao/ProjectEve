@@ -127,7 +127,37 @@ class EveDB:
 
         self.__evedb_set('{}.version'.format(table), version)
 
-        return sql
+        return True
+
+    def table_add_column(self, table, column, version = 0):
+        """
+        column: {
+          'name': '', #required
+          'type': '', #required
+          'default': value, # optional
+        }
+        """
+        table = self.__full_table_name(table)
+        if not isinstance(column, dict):
+            raise 'column format error'
+        if 'name' not in column or 'type' not in column:
+            raise 'column name and type are required'
+        name = column['name']
+        dtype = column['type']
+        default = column.get('default', None)
+
+        if dtype.lower() not in ['integer', 'text', 'real', 'blob']:
+            raise 'unknown data type'
+        q = '`{}` {}'.format(name, dtype)
+        if default is not None:
+            if isinstance(default, str):
+                default = '"{}"'.format(default)
+            q += ' DEFAULT {}'.format(default)
+
+        sql = 'ALTER TABLE `{}` ADD COLUMN {};'.format(table, q)
+        self.execute(sql)
+        self.__evedb_set('{}.version'.format(table), version)
+        return True
 
     def table_version(self, table):
         table = self.__full_table_name(table)
