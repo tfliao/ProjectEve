@@ -63,11 +63,32 @@ class Connect(CmdBase):
         port = args.port if args.port is not None else 22
         target = self.__build_target_str(user, addr, port)
 
+        if '@' in addr:
+            user, addr = addr.split('@')
+
         db.table_update(self.__table, {'mach': args.machine, 'user': user, 'addr': addr, 'port': port})
         self.loginfo('Alias [{}] = [{}]'.format(args.machine, target))
 
         if args.copykey:
             self.__copy_key(user, addr, port)
+        return 0
+
+    def __run_refresh(self):
+        args = self._args
+        db = self._db()
+
+        res = db.table_select(self.__table, {'mach': args.machine})
+        if len(res) == 0:
+            self.logerror('No record with mach=[{}] found in db'.format(args.machine))
+            return 1
+
+        r = res[0]
+        addr = r['addr']
+        user = r['user']
+        port = r['port']
+
+        self.__copy_key(user, addr, port)
+
         return 0
 
     def __run_connect(self):
@@ -114,9 +135,18 @@ class Connect(CmdBase):
         keyfile = os.path.expanduser('~/.ssh/id_rsa.pub')
         target = '{}@{}'.format(user, addr) if user != '-' else addr
         cmdline = ['ssh-copy-id', '-i', keyfile, '-p', str(port), target]
-        self.loginfo('Copying ~/.ssh/id_rsa.pub to dev server')
+        self.loginfo('Copying ~/.ssh/id_rsa.pub to server')
         self.logdebug('Run command: {}'.format(cmdline))
-        subprocess.call(cmdline)
+        r = subprocess.call(cmdline)
+        if r != 0:
+            hostfile = os.path.expanduser('~/.ssh/known_hosts')
+            cmdline = ["ssh-keygen", "-f", hostfile, "-R", addr]
+            self.loginfo('Removing mismatch key in ~/.ssh/known_hosts')
+            self.logdebug('Run command: {}'.format(cmdline))
+            out = subprocess.check_output(cmdline)
+            if 'not found in' not in out.decode('utf-8'):
+                self.loginfo('Remove key successful, copy it again')
+                self.__copy_key(user, addr, port)
         pass
 
     def _run(self):
@@ -128,6 +158,8 @@ class Connect(CmdBase):
             return self.__run_list()
         elif args.alias is not None:
             return self.__run_alias()
+        elif args.refresh is not None:
+            return self.__run_refresh()
         else:
             return self.__run_connect()
 
@@ -140,6 +172,7 @@ class Connect(CmdBase):
         parser.add_argument('machine', help='specify machine to connect, given "list" will list all alias in db')
         parser.add_argument('--alias', '-a', metavar='addr', help='make an alias of machine')
         parser.add_argument('--list', '-l', default=False, action='store_true', help='list exists aliases')
+        parser.add_argument('--refresh', '-r', default=False, action='store_true', help='refresh ssh key')
         parser.add_argument('--port', '-p', type=int, help='specify port, store with alias, or overwrite when connect')
         parser.add_argument('--user', '-u', help='specify user in remote server')
         parser.add_argument('--copykey', default=False, action='store_true', help='copy ssh key to remote server')
