@@ -158,7 +158,7 @@ class Connect(CmdBase):
             return self.__run_list()
         elif args.alias is not None:
             return self.__run_alias()
-        elif args.refresh is not None:
+        elif args.refresh:
             return self.__run_refresh()
         else:
             return self.__run_connect()
