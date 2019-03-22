@@ -4,6 +4,8 @@ import argparse
 import requests
 import re
 import unicodedata
+import time
+import random
 
 from cmdbase import CmdBase
 from eve.common import *
@@ -167,6 +169,7 @@ class Comic(CmdBase):
     def run_scan(self):
         db = self._db()
         rows = db.table_select(self.__table)
+        random.shuffle(rows)
 
         update_cnt = 0
         for row in rows:
@@ -176,6 +179,7 @@ class Comic(CmdBase):
             last_update = row['last_update']
             last_episode = row['last_episode']
 
+            time.sleep(random.randint(0, 3))
             r = self.__scan_url(url)
             update = r[1]
             episode = r[2]
