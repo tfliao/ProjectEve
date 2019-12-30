@@ -76,14 +76,14 @@ class Comic(CmdBase):
         date = m.group(1) if m else None
         m = re.search(episode_pattern, content)
         episode = m.group(2) if m else None
-        url = m.group(1) if m else None
+        epurl = m.group(1) if m else None
 
         if name is None or date is None:
             self.logerror('content scan failue, url=[{}]'.format(url))
             return None
         else:
             self.logdebug('content scan success, name:[{}] date:[{}]'.format(name, date))
-            return (name, date, episode, url)
+            return (name, date, episode, epurl)
 
     def _run(self):
         args = self._args
@@ -180,11 +180,14 @@ class Comic(CmdBase):
             last_episode = row['last_episode']
 
             time.sleep(random.randint(0, 3))
+            print('Checking {} ... '.format(name), end='')
             r = self.__scan_url(url)
+            if r is None:
+                print('failed')
+                continue
             update = r[1]
             episode = r[2]
             epurl = self.baseurl + r[3]
-            print('Checking {} ... '.format(name), end='')
             if episode != last_episode:
                 update_cnt += 1
                 print()
