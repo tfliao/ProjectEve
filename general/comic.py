@@ -21,7 +21,7 @@ class Comic(CmdBase):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
 
     __table = 'list'
-    __table_version = "2"
+    __table_version = "3"
     __schema = [
             {
                 'name': 'id',
@@ -39,13 +39,21 @@ class Comic(CmdBase):
             }, {
                 'name': 'last_episode',
                 'type': 'text',
+            }, {
+                'name': 'is_dead',
+                'type': 'integer',
             }
         ]
     def __setup_db(self):
         db = self._db()
-        if db.table_version(self.__table) == "1":
+        tb_ver = int(db.table_version(self.__table))
+        if tb_ver <= 1:
             column = {'name': 'last_episode', 'type': 'text', 'default': 'N/A'}
             db.table_add_column(self.__table, column, "2")
+
+        if tb_ver <= 2:
+            column = {'name': 'is_dead', 'type': 'integer', 'default': '0'}
+            db.table_add_column(self.__table, column, "3")
 
         if db.table_version(self.__table) != self.__table_version:
             db.table_create(self.__table, self.__schema, self.__table_version)
@@ -69,6 +77,7 @@ class Comic(CmdBase):
         name_pattern = r'<h1>(.*?)</h1>'
         date_pattern = r'最近于 \[<span class="red">(\d{4}-\d\d-\d\d)</span>\]'
         episode_pattern = r'更新至 \[ <a href="([\/\w\d\.]*)" target="_blank" class="blue">(.*?)</a> ]'
+        removed_pattern = '漫画状态：</strong><span class="gray">已下架</span>。'
 
         m = re.search(name_pattern, content)
         name = m.group(1) if m else None
@@ -77,13 +86,13 @@ class Comic(CmdBase):
         m = re.search(episode_pattern, content)
         episode = m.group(2) if m else None
         epurl = m.group(1) if m else None
+        is_dead = content.find(removed_pattern) != -1
 
-        if name is None or date is None:
-            self.logerror('content scan failue, url=[{}]'.format(url))
-            return None
-        else:
-            self.logdebug('content scan success, name:[{}] date:[{}]'.format(name, date))
-            return (name, date, episode, epurl)
+        if is_dead:
+            self.logerror('no more available, url=[{}]'.format(url))
+
+        self.logdebug('content scan success, name:[{}] date:[{}]'.format(name, date))
+        return (name, date, episode, epurl, is_dead)
 
     def _run(self):
         args = self._args
@@ -103,6 +112,8 @@ class Comic(CmdBase):
         parser.add_argument('action', choices=['list', 'add', 'del', 'scan'])
         parser.add_argument('--url', '-u', help='specify url to scan')
         parser.add_argument('--id', '-i', help='indicate which record to delete')
+        parser.add_argument('--all', '-a', action='store_true', default=False,
+                            help='force scan all url including dead comic')
 
     def _cut_str(self, _str, _len):
         if cht_width(_str) <= _len:
@@ -141,7 +152,7 @@ class Comic(CmdBase):
             return 1
         max_id = db.table_max(self.__table, 'id')
         next_id = 1 if max_id is None else max_id + 1
-        db.table_update(self.__table, {'id': next_id, 'name': r[0], 'url': args.url, 'last_update': r[1], 'last_episode': r[2]})
+        db.table_update(self.__table, {'id': next_id, 'name': r[0], 'url': args.url, 'last_update': r[1], 'last_episode': r[2], 'is_dead': r['4']})
         self.loginfo('comic [{}] with url:[{}] added'.format(r[0], args.url))
         return 0
 
@@ -178,12 +189,17 @@ class Comic(CmdBase):
             url = row['url']
             last_update = row['last_update']
             last_episode = row['last_episode']
+            is_dead = row['is_dead']
+
+            if not self._args.all and is_dead != 0:
+                continue
 
             time.sleep(random.randint(0, 3))
             print('Checking {} ... '.format(name), end='')
             r = self.__scan_url(url)
-            if r is None:
-                print('failed')
+            if r[4]:
+                print('dead')
+                db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update, 'last_episode': episode, 'is_dead': 1})
                 continue
             update = r[1]
             episode = r[2]
@@ -192,7 +208,7 @@ class Comic(CmdBase):
                 update_cnt += 1
                 print()
                 print('> updated from {}({}) to {}({}), url: {}'.format(last_episode, last_update, episode, update, epurl))
-                db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update, 'last_episode': episode})
+                db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update, 'last_episode': episode, 'is_dead': 0})
             else:
                 print('nothing new')
         self.loginfo('Total {} comic updated'.format(update_cnt))
