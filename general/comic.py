@@ -135,7 +135,10 @@ class Comic(CmdBase):
         for row in rows:
             name = self._cut_str(row['name'], 40)
             episode = self._cut_str(row['last_episode'], 10)
-            print('{:4d} | {} | {} | {} | {}'.format(row['id'], name, episode, row['last_update'], row['url']))
+            tag = ''
+            if row['is_dead'] != 0:
+                tag = 'removed'
+            print('{:4d} | {} | {} | {} | {} | {}'.format(row['id'], name, episode, row['last_update'], row['url'], tag))
 
         return 0
 
