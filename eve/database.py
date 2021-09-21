@@ -182,6 +182,35 @@ class EveDB:
         sql = base_query.format(table, ','.join(keys), valueholder)
         self.execute(sql, values)
 
+    def table_update_condition(self, table, updates, conditions):
+        """
+        updates: {
+            'key': 'value', ...
+        }
+        conditions: {
+            'key': 'value', ...
+        }
+        """
+        base_query = 'UPDATE `{}` SET {} {};'
+
+        table = self.__full_table_name(table)
+        if not isinstance(updates, dict) or not isinstance(conditions, dict) :
+            raise 'updates or conditions format error'
+        
+        if len(updates) == 0:
+            # no updates
+            return
+
+        cond, cond_args = self.__build_conditions(conditions)
+        
+        upd = ','.join(['`{}` = ?'.format(key) for key in updates.keys()])
+        upd_args = list(updates.values())
+        
+        sql = base_query.format(table, upd, cond)
+        args = tuple(upd_args + list(cond_args))
+
+        self.execute(sql, args)
+
     def table_delete(self, table, keyvalue, expected_row):
         """
         keyvalue: {

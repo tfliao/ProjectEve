@@ -12,7 +12,7 @@ from eve.common import *
 
 class Comic(CmdBase):
 
-    version = '1.0.0'
+    version = '2.0.0'
     desc = "command line interface to scan new comic arrival in www.manhuagui.com"
 
     baseurl = 'https://www.manhuagui.com'
@@ -21,7 +21,7 @@ class Comic(CmdBase):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
 
     __table = 'list'
-    __table_version = "3"
+    __table_version = "1"
     __schema = [
             {
                 'name': 'id',
@@ -34,27 +34,30 @@ class Comic(CmdBase):
                 'name': 'url',
                 'type': 'text',
             }, {
-                'name': 'last_update',
+                'name': 'status',
+                'type': 'text', # good, removed, error
+            }, {
+                'name': 'latest_episode',
                 'type': 'text',
             }, {
-                'name': 'last_episode',
+                'name': 'latest_update',
                 'type': 'text',
             }, {
-                'name': 'is_dead',
-                'type': 'integer',
+                'name': 'latest_url',
+                'type': 'text',
+            }, {
+                'name': 'viewed_episode',
+                'type': 'text',
+            }, {
+                'name': 'viewed_update',
+                'type': 'text',
+            }, {
+                'name': 'viewed_url',
+                'type': 'text',
             }
         ]
     def __setup_db(self):
         db = self._db()
-        tb_ver = int(db.table_version(self.__table))
-        if tb_ver <= 1:
-            column = {'name': 'last_episode', 'type': 'text', 'default': 'N/A'}
-            db.table_add_column(self.__table, column, "2")
-
-        if tb_ver <= 2:
-            column = {'name': 'is_dead', 'type': 'integer', 'default': '0'}
-            db.table_add_column(self.__table, column, "3")
-
         if db.table_version(self.__table) != self.__table_version:
             db.table_create(self.__table, self.__schema, self.__table_version)
 
@@ -67,44 +70,106 @@ class Comic(CmdBase):
                 'upgrade-insecure-requests': '1',
                 'user-agent': 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36',
                 }
-        # return (name, date)
+        ret = {'s': 'good'}
         try:
             r = requests.get(url, headers = headers)
             content = r.content.decode()
         except Exception as e:
             self.logerror('Failed to get content from {}'.format(url))
-            raise
+            ret['s'] = 'error'
+            return ret
+
         name_pattern = r'<h1>(.*?)</h1>'
         date_pattern = r'最近于 \[<span class="red">(\d{4}-\d\d-\d\d)</span>\]'
         episode_pattern = r'更新至 \[ <a href="([\/\w\d\.]*)" target="_blank" class="blue">(.*?)</a> ]'
         removed_pattern = '漫画状态：</strong><span class="gray">已下架</span>。'
 
         m = re.search(name_pattern, content)
-        name = m.group(1) if m else None
+        ret['n'] = m.group(1) if m else None
         m = re.search(date_pattern, content)
-        date = m.group(1) if m else None
+        ret['d'] = m.group(1) if m else None
         m = re.search(episode_pattern, content)
-        episode = m.group(2) if m else None
-        epurl = m.group(1) if m else None
-        is_dead = content.find(removed_pattern) != -1
-
-        if is_dead:
+        ret['e'] = m.group(2) if m else None
+        ret['u'] = m.group(1) if m else None
+        if content.find(removed_pattern) != -1:
             self.logerror('no more available, url=[{}]'.format(url))
+            ret['s'] = 'removed'
+            return ret
 
-        self.logdebug('content scan success, name:[{}] date:[{}]'.format(name, date))
-        return (name, date, episode, epurl, is_dead)
+        self.logdebug('content scan success, {}'.format(ret))
+        return ret
+
+    def _scan_one(self, row):
+        _id = row['id']
+        url = row['url']
+        r = self.__scan_url(url)
+        if r['s'] != 'good':
+            self._db().table_update_condition(self.__table, {'status': r['s']}, {'id', _id})
+        else:
+            if r['u'] == row['latest_url']:
+                # nothing new
+                return
+            self._db().table_update_condition(self.__table,
+                {'status': r['s'], 'latest_episode': r['e'],
+                'latest_update': r['d'], 'latest_url': r['u']},
+                {'id', _id})
+
+    def run_daemon_scan(self):
+        db = self._db()
+        rows = db.table_select(self.__table)
+        random.shuffle(rows)
+
+        for row in rows:
+            if row['status'] not in ['good', 'rescan']:
+                continue
+
+            self._scan_one(row['url'])
+            time.sleep(60)
+        return 0
+
+    def run_list2(self):
+        db = self._db()
+        rows = db.table_select(self.__table)
+        print('Total {} records'.format(len(rows)))
+
+        for row in rows:
+            name = self._cut_str(row['name'], 40)
+            status = row['status']
+            viewed = self._cut_str(row['viewed_episode'], 10)
+            latest = self._cut_str(row['latest_episode'], 10)
+            print('{:4d} | {} | {} | {} | {} | {}'.format(row['id'], name, status, viewed, latest, row['url']))
+
+        return 0
+
+    def run_add2(self):
+        args = self._args
+        db = self._db()
+
+        if args.url is None:
+            self.logerror('url is required for action [add]')
+            return 1
+        r = self.__scan_url(args.url)
+        if r['s'] != 'good':
+            self.logerror('not acceptable url to add')
+            return 1
+        max_id = db.table_max(self.__table, 'id')
+        next_id = 1 if max_id is None else max_id + 1
+        db.table_update(self.__table, {'id': next_id, 'name': r['n'], 'url': args.url, 'status': r['s'], 'latest_update': r['d'], 'latest_episode': r['e'], 'latest_url': r['u']})
+        self.loginfo('comic [{}] with url:[{}] added'.format(r['n'], args.url))
+        return 0
+    # =======================
 
     def _run(self):
         args = self._args
         self.__setup_db()
         if args.action == 'list':
-            return self.run_list()
+            return self.run_list2()
         elif args.action == 'add':
-            return self.run_add()
+            return self.run_add2()
         elif args.action == 'del':
             return self.run_del()
         elif args.action == 'scan':
-            return self.run_scan()
+            return self.run_daemon_scan()
         else:
             raise
 
@@ -116,6 +181,7 @@ class Comic(CmdBase):
                             help='force scan all url including dead comic')
 
     def _cut_str(self, _str, _len):
+        _str = str(_str)
         if cht_width(_str) <= _len:
             return '{{:{}}}'.format(_len - cht_len(_str)).format(_str)
         for i in range(0, _len):
