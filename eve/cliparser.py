@@ -2,28 +2,75 @@
 # vim: set expandtab:
 
 class CliParser:
-    class Command:
-        def __init__(self, func, tokens, default_args, desc):
-            self.tokens = tokens
-            self.func = func
-            self.dargs = default_args
+    class CmdToken:
+        def __init__(self, token, desc = "", args = {}, hidden = True, func = None):
+            self.token = token
             self.desc = desc
+            self.func = func
+            self.args = args
+            self.hidden = hidden
+
+            self.children = {}
+
+    """
+    A Cmd Tree that help to walk through cmd line
+    """
+
+
+    def __default_helper_func(self, cmdline_matched, cmdtoekn, cmdline):
+        """
+        when cmdline matchs no rules, this function will be called
+        `cmdline_matched`: prefix of cmdline that match with some rules
+        `cmdtoken`: the last token for cmdline matched
+        `cmdline`: the full cmdline that passed
+        """
+
+        # format:
+        """
+            cmdline_matched
+            possible candidates:
+                cmdtoken.child[].token  cmdtoken.child[].desc
+                ...
+        """
+        pass
+
 
     def __init__(self):
-        self.commands = []
+        self.root = CliParser.CmdToken("(root)")
+        self.cmdline_matched = []
+        self.cmdline = []
+    
 
-    def add_command(self, func, tokens, default_args={}, description="", ):
-        self.commands.append(CliParser.Command(func, tokens, default_args, description))
-        return True
+    def validate_command(self, tokens):
+        # TODO: add some checks for tokens, raise when failure
+        pass
+
+
+    def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False):
+        self.validate_command(tokens)
+
+        node = self.root
+        for token in tokens:
+            if token not in node.children:
+                node.children[token] = CliParser.CmdToken(token)
+            node = node.children[token]
+            node.hidden &= hidden
+
+        if inst is not None:
+            default_args['self'] = inst
+        node.desc = description
+        node.args = default_args
+        node.func = func
+        node.hidden = hidden
     
-    def add_command_class(self, inst, func, tokens, default_args={}, description=""):
-        default_args['self'] = inst
-        return self.add_command(func, tokens, default_args, description)
-    
+    def dump_r(self, node, lv = 0):
+        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}, hidden: {node.hidden}")
+        for child in node.children.values():
+            self.dump_r(child, lv+1)
+
     def dump(self):
         print("loaded commands: ")
-        for cmd in self.commands:
-            print(f'tokens: {cmd.tokens}, dargs: {cmd.dargs}, func: {cmd.func}, desc: {cmd.desc}')
+        self.dump_r(self.root)
         print("end of commands")
 
     def __test_cmd(self, cmd, tokens):
@@ -74,6 +121,7 @@ details:
             all the following commands matchs, if no other possible token start with files*
             > set fs ext4
             > set files ext4
+    5. allow some commands to be hidden, which won't be shown in help
 
 * show helpful messages when command line matchs no rules
 * show candidates of commands when passing special token (e.g. ? like cisco console)
