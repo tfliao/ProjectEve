@@ -46,34 +46,40 @@ class CliParser:
         print('No command matched')
 
 
+"""
+main feature:
 
+* define command with (tokens, func, desc)
 
-if __name__ == '__main__':
-    class TestClass:
-        def f1(self, a):
-            print(f'TestClass.f1({a})')
+details:
+* special format in tokens, which support the following behaviors
+    1. pass token (string) as args with some name
+        * e.g.
+            ["set", "feature", "@enable"], handle_set_feature(enable)
+            > set feature true
+            pass string "true" as argument "enable" in handle_set_feature
+    2. allow single token that accept dynamic number of args in command
+        * e.g.
+            ["show", "slot", "@idlist..."], handle_show_slot(idlist)
+            > show slot 1 2 3
+            pass list of string ["1", "2", "3"] as argument "idlist" in handle_show_slot
+    3. type check/convert for arguments
+        * e.g.
+            ["show", "slot", "@idlist(int)..."], handle_show_slot(idlist)
+            > show slot 1 2 3
+            pass list of int [1, 2, 3] as argument "idlist" in handle_show_slot
+    4. match prefix, match abbreviation
+        * e.g.
+            ["set", "fs|filesystem", "@fstype"], handle_set_filesystem(fstype)
+            all the following commands matchs, if no other possible token start with files*
+            > set fs ext4
+            > set files ext4
 
-        def f2(self, a, b):
-            print(f'TestClass.f2({a}, {b})')
+* show helpful messages when command line matchs no rules
+* show candidates of commands when passing special token (e.g. ? like cisco console)
+* interactive console for all function above
+    * provide shell-like experience
+        1. arrows (up/down/left/right)
+        2. ^C to clean current command, type exit to leave
 
-    def f3(a, b):
-        print(f'f3({a}, {b})')
-
-
-    test = TestClass()
-
-    parser = CliParser()
-    parser.add_command_class(test, TestClass.f1, ['test', 'f1'], {'a': 'haha'}, 'call member function f1 with default args')
-    parser.add_command_class(test, TestClass.f1, ['test', 'f1', '[a]'], {}, 'call member function f1 of test')
-    parser.add_command_class(test, TestClass.f2, ['test', 'f2', '[a]', '[b]'], {}, 'call member function f2 of test')
-    parser.add_command(f3, ['test', 'f3', '[a]', '[b]'], {}, 'call function f3')
-    
-    parser.dump()
-
-    while True:
-        line = input('cmd> ')
-        if line.startswith('exit'):
-            break
-        tokens = line.strip().split(' ')
-        parser.call(tokens)
-
+"""
