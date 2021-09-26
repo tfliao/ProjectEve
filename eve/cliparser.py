@@ -1,8 +1,22 @@
 #!/usr/bin/python
 # vim: set expandtab:
 
+import re
+
 class CliParser:
+    class BadTokenFormatException(Exception):
+        def __init__(self, message):
+            super(message)
+
     class CmdToken:
+        CONST_TOKEN = 'const'
+        VAR_TOKEN = 'var' # target, type, ... properties will be set
+        RE_VAR_PATTERN = r'@(\w+)(\(\w+\))?(...)?'
+
+        KEY_TARGET = 'target'
+        KEY_TYPE = 'type'
+        KEY_DYNAMIC_LENGTH = 'dleng'
+
         def __init__(self, token, desc = "", args = {}, hidden = True, func = None):
             self.token = token
             self.desc = desc
@@ -11,6 +25,23 @@ class CliParser:
             self.hidden = hidden
 
             self.children = {}
+
+            self.type = CliParser.CmdToken.CONST_TOKEN
+            self.props = None
+            self.__parse_token_type(token)
+
+        def __parse_token_type(self, token):
+            if not token.startswith('@'):
+                return
+            self.type = CliParser.CmdToken.VAR_TOKEN
+            m = re.match(__class__.RE_VAR_PATTERN, token)
+            if m is None:
+                raise CliParser.BadTokenFormatException(f'token {token} is illegal')
+            self.props = {
+                __class__.KEY_TARGET: m.group(1),
+                __class__.KEY_TYPE: 'str' if m.group(2) is None else m.group(2),
+                __class__.KEY_DYNAMIC_LENGTH: m.group(3) is not None
+            }
 
     """
     A Cmd Tree that help to walk through cmd line
@@ -64,7 +95,7 @@ class CliParser:
         node.hidden = hidden
     
     def dump_r(self, node, lv = 0):
-        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}, hidden: {node.hidden}")
+        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}, hidden: {node.hidden}, type: {node.type}({node.props})")
         for child in node.children.values():
             self.dump_r(child, lv+1)
 
