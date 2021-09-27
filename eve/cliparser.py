@@ -3,22 +3,22 @@
 
 import re
 
+TOKEN_TYPE_CONST = 'const'
+TOKEN_TYPE_VAR = 'var' # target, type, ... properties will be set
+
+KEY_TARGET = 'target'
+KEY_TYPE = 'type'
+KEY_LIST = 'list'
+
 class CliParser:
     class BadTokenFormatException(Exception):
         def __init__(self, message):
             super(message)
 
     class CmdToken:
-        CONST_TOKEN = 'const'
-        VAR_TOKEN = 'var' # target, type, ... properties will be set
-        RE_VAR_PATTERN = r'@(\w+)(\(\w+\))?(...)?'
-
-        KEY_TARGET = 'target'
-        KEY_TYPE = 'type'
-        KEY_DYNAMIC_LENGTH = 'dleng'
+        RE_VAR_PATTERN = r'@\s*(\w+)\s*(\(\w+\))?\s*(...)?'
 
         def __init__(self, token, desc = "", args = {}, hidden = True, func = None):
-            self.token = token
             self.desc = desc
             self.func = func
             self.args = args
@@ -26,22 +26,28 @@ class CliParser:
 
             self.children = {}
 
-            self.type = CliParser.CmdToken.CONST_TOKEN
+            self.token = token
             self.props = None
-            self.__parse_token_type(token)
+            self.type = self.__parse_token_type(token)
 
         def __parse_token_type(self, token):
             if not token.startswith('@'):
-                return
-            self.type = CliParser.CmdToken.VAR_TOKEN
+                return TOKEN_TYPE_CONST
+
             m = re.match(__class__.RE_VAR_PATTERN, token)
             if m is None:
                 raise CliParser.BadTokenFormatException(f'token {token} is illegal')
+            
+            target = m.group(1)
+            type = 'str' if m.group(2) is None else m.group(2)
+            listable = m.group(3) is not None
             self.props = {
-                __class__.KEY_TARGET: m.group(1),
-                __class__.KEY_TYPE: 'str' if m.group(2) is None else m.group(2),
-                __class__.KEY_DYNAMIC_LENGTH: m.group(3) is not None
+                KEY_TARGET: target,
+                KEY_TYPE: type,
+                KEY_LIST: listable
             }
+            self.token = f'@{target}({type})' +  '...' if listable else ''
+            return TOKEN_TYPE_VAR
 
     """
     A Cmd Tree that help to walk through cmd line
