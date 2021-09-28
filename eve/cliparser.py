@@ -15,6 +15,10 @@ class CliParser:
         def __init__(self, message):
             super(message)
 
+    class CmdTreeException(Exception):
+        def __init__(self, message):
+            super(message)
+
     class CmdToken:
         RE_VAR_PATTERN = r'@\s*(\w+)\s*(\(\w+\))?\s*(...)?'
 
@@ -24,7 +28,8 @@ class CliParser:
             self.args = args
             self.hidden = hidden
 
-            self.children = {}
+            self.const_children = {}
+            self.var_child = None
 
             self.token = token
             self.props = None
@@ -88,9 +93,19 @@ class CliParser:
 
         node = self.root
         for token in tokens:
-            if token not in node.children:
-                node.children[token] = CliParser.CmdToken(token)
-            node = node.children[token]
+            cmd_token = CliParser.CmdToken(token)
+            if cmd_token.type == TOKEN_TYPE_CONST:
+                if cmd_token.token not in node.const_children:
+                    node.const_children[cmd_token.token] = cmd_token
+                node = node.const_children[cmd_token.token]
+            else:
+                if node.var_child is not None:
+                    if node.var_child.token != cmd_token.token:
+                        raise CliParser.CmdTreeException(f"Conflicted variable token given [{node.var_child.token}] vs [{cmd_token.token}]")
+                    node = node.var_child
+                else:
+                    node.var_child = cmd_token
+                    node = node.var_child
             node.hidden &= hidden
 
         if inst is not None:
@@ -101,9 +116,11 @@ class CliParser:
         node.hidden = hidden
     
     def dump_r(self, node, lv = 0):
-        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}, hidden: {node.hidden}, type: {node.type}({node.props})")
-        for child in node.children.values():
+        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}")
+        for child in node.const_children.values():
             self.dump_r(child, lv+1)
+        if node.var_child is not None:
+            self.dump_r(node.var_child, lv+1)
 
     def dump(self):
         print("loaded commands: ")
