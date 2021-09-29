@@ -42,7 +42,7 @@ class CliParser:
             m = re.match(__class__.RE_VAR_PATTERN, token)
             if m is None:
                 raise CliParser.BadTokenFormatException(f'token {token} is illegal')
-            
+
             target = m.group(1)
             type = 'str' if m.group(2) is None else m.group(2)
             listable = m.group(3) is not None
@@ -51,7 +51,7 @@ class CliParser:
                 KEY_TYPE: type,
                 KEY_LIST: listable
             }
-            self.token = f'@{target}({type})' +  '...' if listable else ''
+            self.token = f'@{target}({type})' +  ('...' if listable else '')
             return TOKEN_TYPE_VAR
 
     """
@@ -68,6 +68,14 @@ class CliParser:
         """
 
         # format:
+        print(f'Given cmdline: {cmdline}')
+        print(f'Matched cmdline: {cmdline_matched}')
+        print(f'possible candidates:')
+        for ctoken, cnode in cmdtoekn.const_children.items():
+            print(f'\t{cnode.token}\t{cnode.desc}')
+        if cmdtoekn.var_child is not None:
+            child = cmdtoekn.var_child
+            print(f'\t{child.token}\t{child.desc}')
         """
             cmdline_matched
             possible candidates:
@@ -81,16 +89,8 @@ class CliParser:
         self.root = CliParser.CmdToken("(root)")
         self.cmdline_matched = []
         self.cmdline = []
-    
-
-    def validate_command(self, tokens):
-        # TODO: add some checks for tokens, raise when failure
-        pass
-
 
     def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False):
-        self.validate_command(tokens)
-
         node = self.root
         for token in tokens:
             cmd_token = CliParser.CmdToken(token)
@@ -114,7 +114,7 @@ class CliParser:
         node.args = default_args
         node.func = func
         node.hidden = hidden
-    
+
     def dump_r(self, node, lv = 0):
         print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}")
         for child in node.const_children.values():
@@ -127,25 +127,54 @@ class CliParser:
         self.dump_r(self.root)
         print("end of commands")
 
-    def __test_cmd(self, cmd, tokens):
-        args = cmd.dargs
-        for i in range(len(tokens)):
-            if cmd.tokens[i].startswith('['):
-                key = cmd.tokens[i][1:-1]
-                args[key] = tokens[i]
-            elif tokens[i] != cmd.tokens[i]:
-                return None
-        return args
+    def __cast_arg(self, token, type):
+        if type == 'str':
+            return token
+        if type == 'int':
+            base = 16 if token.startswith('0x') else 10
+            return int(token, base)
+        raise Exception("Unknown type")
+
+    def __find_child(self, node, token, args):
+        prefix_children = []
+        for ctoken, cnode in node.const_children.items():
+            if ctoken == token:
+                return cnode
+            if ctoken.startswith(token):
+                prefix_children.append(cnode)
+
+        if node.var_child is None:
+            return None
+
+        cnode = node.var_child
+        target = cnode.props[KEY_TARGET]
+        value = self.__cast_arg(token, cnode.props[KEY_TYPE])
+        if cnode.props[KEY_LIST]:
+            value = args.get(target, []) + [value]
+
+        args[target] = value
+        return cnode
 
     def call(self, tokens):
-        for cmd in self.commands:
-            if len(tokens) == len(cmd.tokens):
-                r = self.__test_cmd(cmd, tokens)
-                if r is not None:
-                    cmd.func(**r)
-                    return
-        print('No command matched')
+        self.cmdline = tokens
+        self.cmdline_matched = []
 
+        args = {}
+        node = self.root
+        for token in tokens:
+            next = self.__find_child(node, token, args)
+            if next is None:
+                self.__default_helper_func(self.cmdline_matched, node, tokens)
+                return
+
+            node = next
+            self.cmdline_matched.append(node.token)
+
+        if node.func is None:
+            self.__default_helper_func(self.cmdline_matched, node, tokens)
+        else:
+            args = dict(node.args, **args)
+            node.func(**args)
 
 """
 main feature:
