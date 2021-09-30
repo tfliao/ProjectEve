@@ -31,18 +31,23 @@ class CliParser:
         def register_extra_type(cls, type):
             cls.ACCEPT_TYPE.add(type)
 
-        def __init__(self, token, desc = "", args = {}, hidden = True, func = None):
-            self.desc = desc
-            self.func = func
-            self.args = args
-            self.hidden = hidden
+        def __init__(self, token):
+            self.desc = self.func = self.args = self.extra = None # shut up the PEP8
 
+            self.hidden = True
             self.const_children = {}
             self.var_child = None
 
             self.token = token
             self.props = None
             self.type = self.__parse_token_type(token)
+
+        def setup(self, desc = "", args = {}, hidden = True, func = None, extra = None):
+            self.desc = desc
+            self.func = func
+            self.args = args
+            self.hidden = hidden
+            self.extra = None
 
         def __parse_token_type(self, token):
             if not token.startswith('@'):
@@ -66,6 +71,9 @@ class CliParser:
             self.token = f'@{target}({type})' +  ('...' if listable else '')
             return TOKEN_TYPE_VAR
 
+    """
+    default functions
+    """
     @staticmethod
     def __bad_command_handler(parse_info):
         print('Command not found / Incomplete command.')
@@ -83,13 +91,9 @@ class CliParser:
             if not vnode.hidden:
                 print(f'\t{vnode.token}\t{vnode.desc}')
 
-    def __init_cast_fn(self):
-        return {
-            'str': lambda x : x,
-            'int': lambda x: int(x, 16 if x.startswith('0x') else 10),
-            'bool': lambda x: x.lower() in ['true', '1', 'yes', 'y', 't']
-        }
-
+    """
+    init
+    """
     def __init__(self):
         self.root = CliParser.CmdToken("(root)")
         self.keyword_help = 'help'
@@ -99,62 +103,15 @@ class CliParser:
         }
         self.cast_fn = self.__init_cast_fn()
 
-    def register_type_caster(self, type, type_fn):
-        """
-        register customized type by providing it casting fn (from str to `type`)
-        `type`: name of type to register
-        `type_fn`: cast function from str
-        """
-        CliParser.CmdToken.register_extra_type(type)
-        self.cast_fn[type] = type_fn
-
-    def register_bad_command_handler(self, bad_cmd_fn):
-        """
-        regiser handler when encounter bad command,
-        bad_cmd_fn expect to accept the following arguments:
-            `parse_info`: {
-                `handle_type`: "bad", indicate which bad_cmd_handler is called
-                `cmdline`: list of str, the full command from user
-                `match_cnt`: indicate # of token matchs some of rule
-                `node`: CliParser.CmdToken, which is last node matchs user's input
-                `variable_node`: CliParser.CmdToken, Noneable, child node that store input to some named args
-                `const_nodes`: list of CliParser.CmdToken, all children that match fixed str
-            }
-        """
-        self.cmd_handler['bad'] = bad_cmd_fn
-
-    def register_help_command_handler(self, help_cmd_fn):
-        """
-        regiser handler when read help command,
-        help_cmd_fn expect to accept the following arguments:
-            `parse_info`; same with bad_cmd_fn, but `handler_type` is 'help'
-        """
-        self.cmd_handler['help'] = help_cmd_fn
-
-    def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False):
-        node = self.root
-        for token in tokens:
-            cmd_token = CliParser.CmdToken(token)
-            if cmd_token.type == TOKEN_TYPE_CONST:
-                if cmd_token.token not in node.const_children:
-                    node.const_children[cmd_token.token] = cmd_token
-                node = node.const_children[cmd_token.token]
-            else:
-                if node.var_child is not None:
-                    if node.var_child.token != cmd_token.token:
-                        raise CliParser.CmdTreeBuildException(f"Conflicted variable token given [{node.var_child.token}] vs [{cmd_token.token}]")
-                    node = node.var_child
-                else:
-                    node.var_child = cmd_token
-                    node = node.var_child
-            node.hidden &= hidden
-
-        if inst is not None:
-            default_args['self'] = inst
-        node.desc = description
-        node.args = default_args
-        node.func = func
-        node.hidden = hidden
+    """
+    private helper functions
+    """
+    def __init_cast_fn(self):
+        return {
+            'str': lambda x : x,
+            'int': lambda x: int(x, 16 if x.startswith('0x') else 10),
+            'bool': lambda x: x.lower() in ['true', '1', 'yes', 'y', 't']
+        }
 
     def __capture_arg(self, node, token, args):
         target = node.props[KEY_TARGET]
@@ -188,7 +145,7 @@ class CliParser:
 
         return self.__capture_arg(node.var_child, token, args)
 
-    def call_cmd_handler(self, type, node, cmdline, match_cnt):
+    def __call_cmd_handler(self, type, node, cmdline, match_cnt):
         parse_info = {
             'handle_type': type,
             'cmdline': cmdline,
@@ -200,24 +157,98 @@ class CliParser:
         assert(type in self.cmd_handler)
         self.cmd_handler[type](parse_info)
 
-    def call(self, tokens):
+    """
+    APIs here
+    """
+    def register_type_caster(self, type, type_fn):
+        """
+        register customized type by providing it casting fn (from str to `type`)
+        `type`: name of type to register
+        `type_fn`: cast function from str
+        """
+        CliParser.CmdToken.register_extra_type(type)
+        self.cast_fn[type] = type_fn
+
+    def register_bad_command_handler(self, bad_cmd_fn):
+        """
+        regiser handler when encounter bad command,
+        bad_cmd_fn expect to accept the following arguments:
+            `parse_info`: {
+                `handle_type`: "bad", indicate which bad_cmd_handler is called
+                `cmdline`: list of str, the full command from user
+                `match_cnt`: indicate # of token matchs some of rule
+                `node`: CliParser.CmdToken, which is last node matchs user's input
+                `variable_node`: CliParser.CmdToken, Noneable, child node that store input to some named args
+                `const_nodes`: list of CliParser.CmdToken, all children that match fixed str
+            }
+        """
+        self.cmd_handler['bad'] = bad_cmd_fn
+
+    def register_help_command_handler(self, help_cmd_fn):
+        """
+        regiser handler when read help command,
+        help_cmd_fn expect to accept the following arguments:
+            `parse_info`; same with bad_cmd_fn, but `handler_type` is 'help'
+        """
+        self.cmd_handler['help'] = help_cmd_fn
+
+    def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False, extra=None):
+        """
+        add a command with the cmdline tokens to match and the func to execute
+
+        `inst`, `func`: handler function expected to be a member of class,
+                        thus (class instance - `inst`, member function `func`) defines func for a command
+        `tokens`: list of str that be used to match user's input, a token start with @ will capture user's input and pass it to handler function
+        `default_args`: predefine some arguments for handler function
+        `description`: description that used in auto-generating help message
+        `hidden`: indicate this command should be hidden from help message
+        `extra`: extra information that can be used in customized help/bad_cmd message
+        """
+        node = self.root
+        for token in tokens:
+            cmd_token = CliParser.CmdToken(token)
+            if cmd_token.type == TOKEN_TYPE_CONST:
+                if cmd_token.token not in node.const_children:
+                    node.const_children[cmd_token.token] = cmd_token
+                node = node.const_children[cmd_token.token]
+            else:
+                if node.var_child is not None:
+                    if node.var_child.token != cmd_token.token:
+                        raise CliParser.CmdTreeBuildException(f"Conflicted variable token given [{node.var_child.token}] vs [{cmd_token.token}]")
+                    node = node.var_child
+                else:
+                    node.var_child = cmd_token
+                    node = node.var_child
+            node.hidden &= hidden
+
+        if inst is not None:
+            default_args['self'] = inst
+        node.setup(description, default_args, hidden, func, extra)
+
+    def invoke(self, tokens):
+        """
+        invoke command with user-input `tokens`
+        """
         args = {}
         match_cnt = 0
         node = self.root
         for token in tokens:
+            # check if match help keyword
             if token.lower() == self.keyword_help:
-                self.call_cmd_handler('help', node, tokens, match_cnt)
+                self.__call_cmd_handler('help', node, tokens, match_cnt)
                 return
 
+            # find most matching child
             next = self.__find_child(node, token, args)
             if next is None:
-                self.call_cmd_handler('bad', node, tokens, match_cnt)
+                self.__call_cmd_handler('bad', node, tokens, match_cnt)
                 return
             match_cnt += 1
             node = next
 
         if node.func is None:
-            self.call_cmd_handler('bad', node, tokens, match_cnt)
+            # stop in no executable node
+            self.__call_cmd_handler('bad', node, tokens, match_cnt)
         else:
             args = dict(node.args, **args)
             node.func(**args)
@@ -229,7 +260,7 @@ main feature:
 
 details:
 * special format in tokens, which support the following behaviors
-    v 1. pass token (string) as args with some name
+    [v] 1. pass token (string) as args with some name
         * e.g.
             ["set", "feature", "@enable"], handle_set_feature(enable)
             > set feature true
@@ -253,8 +284,9 @@ details:
             > set files ext4 # prefix
     [v] 5. allow some commands to be hidden, which won't be shown in help
 
-* show helpful messages when command line matchs no rules
-* show candidates of commands when passing special token (e.g. ? like cisco console)
+v show helpful messages when command line matchs no rules
+v show candidates of commands when passing special token (e.g. ? like cisco console)
+
 * interactive console for all function above
     * provide shell-like experience
         1. arrows (up/down/left/right)
