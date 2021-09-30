@@ -25,7 +25,11 @@ class CliParser:
 
     class CmdToken:
         RE_VAR_PATTERN = r'@\s*(\w+)\s*(\((\w+)\))?\s*(...)?'
-        ACCEPT_TYPE = ['bool', 'str', 'int']
+        ACCEPT_TYPE = {'bool', 'str', 'int'}
+
+        @classmethod
+        def register_extra_type(cls, type):
+            cls.ACCEPT_TYPE.add(type)
 
         def __init__(self, token, desc = "", args = {}, hidden = True, func = None):
             self.desc = desc
@@ -79,6 +83,13 @@ class CliParser:
             if not vnode.hidden:
                 print(f'\t{vnode.token}\t{vnode.desc}')
 
+    def __init_cast_fn(self):
+        return {
+            'str': lambda x : x,
+            'int': lambda x: int(x, 16 if x.startswith('0x') else 10),
+            'bool': lambda x: x.lower() in ['true', '1', 'yes', 'y', 't']
+        }
+
     def __init__(self):
         self.root = CliParser.CmdToken("(root)")
         self.keyword_help = 'help'
@@ -86,8 +97,16 @@ class CliParser:
             'bad': CliParser.__bad_command_handler,
             'help': CliParser.__help_command_handler
         }
-        self.cmdline_matched = []
-        self.cmdline = []
+        self.cast_fn = self.__init_cast_fn()
+
+    def register_type_caster(self, type, type_fn):
+        """
+        register customized type by providing it casting fn (from str to `type`)
+        `type`: name of type to register
+        `type_fn`: cast function from str
+        """
+        CliParser.CmdToken.register_extra_type(type)
+        self.cast_fn[type] = type_fn
 
     def register_bad_command_handler(self, bad_cmd_fn):
         """
@@ -137,19 +156,10 @@ class CliParser:
         node.func = func
         node.hidden = hidden
 
-    def __cast_arg(self, token, type):
-        if type == 'str':
-            return token
-        if type == 'int':
-            base = 16 if token.startswith('0x') else 10
-            return int(token, base)
-        if type == 'bool':
-            return token.lower() in ['true', '1', 'yes', 'y', 't']
-        raise CliParser.CmdTreeParseException(f'Unknown type [{type}]')
-
     def __capture_arg(self, node, token, args):
         target = node.props[KEY_TARGET]
-        value = self.__cast_arg(token, node.props[KEY_TYPE])
+        type = node.props[KEY_TYPE]
+        value = self.cast_fn[type](token)
         if node.props[KEY_LIST]:
             value = args.get(target, []) + [value]
         args[target] = value
@@ -205,7 +215,6 @@ class CliParser:
                 return
             match_cnt += 1
             node = next
-            self.cmdline_matched.append(node.token)
 
         if node.func is None:
             self.call_cmd_handler('bad', node, tokens, match_cnt)
