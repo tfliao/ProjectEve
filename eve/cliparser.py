@@ -137,18 +137,6 @@ class CliParser:
         node.func = func
         node.hidden = hidden
 
-    def dump_r(self, node, lv = 0):
-        print(f"{'  '*lv}{node.token} | func: {node.func}, args: {node.args}, desc: {node.desc}")
-        for child in node.const_children.values():
-            self.dump_r(child, lv+1)
-        if node.var_child is not None:
-            self.dump_r(node.var_child, lv+1)
-
-    def dump(self):
-        print("loaded commands: ")
-        self.dump_r(self.root)
-        print("end of commands")
-
     def __cast_arg(self, token, type):
         if type == 'str':
             return token
