@@ -62,43 +62,55 @@ class CliParser:
             self.token = f'@{target}({type})' +  ('...' if listable else '')
             return TOKEN_TYPE_VAR
 
-    """
-    A Cmd Tree that help to walk through cmd line
-    """
+    @staticmethod
+    def __bad_command_handler(parse_info):
+        print('Command not found / Incomplete command.')
 
-
-    def __default_helper_func(self, cmdline_matched, cmdtoekn, cmdline):
-        """
-        when cmdline matchs no rules, this function will be called
-        `cmdline_matched`: prefix of cmdline that match with some rules
-        `cmdtoken`: the last token for cmdline matched
-        `cmdline`: the full cmdline that passed
-        """
-
-        # format:
+    @staticmethod
+    def __help_command_handler(parse_info):
+        cmdline = parse_info['cmdline'][:parse_info['match_cnt']]
         print(f'Given cmdline: {cmdline}')
-        print(f'Matched cmdline: {cmdline_matched}')
-        print(f'possible candidates:')
-        for _, cnode in cmdtoekn.const_children.items():
+        print(f' candidates:')
+        for cnode in parse_info['const_nodes']:
             if not cnode.hidden:
                 print(f'\t{cnode.token}\t{cnode.desc}')
-        if cmdtoekn.var_child is not None:
-            child = cmdtoekn.var_child
-            if not cnode.hidden:
-                print(f'\t{child.token}\t{child.desc}')
-        """
-            cmdline_matched
-            possible candidates:
-                cmdtoken.child[].token  cmdtoken.child[].desc
-                ...
-        """
-        pass
-
+        vnode = parse_info['variable_node']
+        if vnode is not None:
+            if not vnode.hidden:
+                print(f'\t{vnode.token}\t{vnode.desc}')
 
     def __init__(self):
         self.root = CliParser.CmdToken("(root)")
+        self.keyword_help = 'help'
+        self.cmd_handler = {
+            'bad': CliParser.__bad_command_handler,
+            'help': CliParser.__help_command_handler
+        }
         self.cmdline_matched = []
         self.cmdline = []
+
+    def register_bad_command_handler(self, bad_cmd_fn):
+        """
+        regiser handler when encounter bad command,
+        bad_cmd_fn expect to accept the following arguments:
+            `parse_info`: {
+                `handle_type`: "bad", indicate which bad_cmd_handler is called
+                `cmdline`: list of str, the full command from user
+                `match_cnt`: indicate # of token matchs some of rule
+                `node`: CliParser.CmdToken, which is last node matchs user's input
+                `variable_node`: CliParser.CmdToken, Noneable, child node that store input to some named args
+                `const_nodes`: list of CliParser.CmdToken, all children that match fixed str
+            }
+        """
+        self.cmd_handler['bad'] = bad_cmd_fn
+
+    def register_help_command_handler(self, help_cmd_fn):
+        """
+        regiser handler when read help command,
+        help_cmd_fn expect to accept the following arguments:
+            `parse_info`; same with bad_cmd_fn, but `handler_type` is 'help'
+        """
+        self.cmd_handler['help'] = help_cmd_fn
 
     def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False):
         node = self.root
@@ -178,23 +190,37 @@ class CliParser:
 
         return self.__capture_arg(node.var_child, token, args)
 
-    def call(self, tokens):
-        self.cmdline = tokens
-        self.cmdline_matched = []
+    def call_cmd_handler(self, type, node, cmdline, match_cnt):
+        parse_info = {
+            'handle_type': type,
+            'cmdline': cmdline,
+            'match_cnt': match_cnt,
+            'node': node,
+            'variable_node': node.var_child,
+            'const_nodes': node.const_children.values(),
+        }
+        assert(type in self.cmd_handler)
+        self.cmd_handler[type](parse_info)
 
+    def call(self, tokens):
         args = {}
+        match_cnt = 0
         node = self.root
         for token in tokens:
-            next = self.__find_child(node, token, args)
-            if next is None:
-                self.__default_helper_func(self.cmdline_matched, node, tokens)
+            if token.lower() == self.keyword_help:
+                self.call_cmd_handler('help', node, tokens, match_cnt)
                 return
 
+            next = self.__find_child(node, token, args)
+            if next is None:
+                self.call_cmd_handler('bad', node, tokens, match_cnt)
+                return
+            match_cnt += 1
             node = next
             self.cmdline_matched.append(node.token)
 
         if node.func is None:
-            self.__default_helper_func(self.cmdline_matched, node, tokens)
+            self.call_cmd_handler('bad', node, tokens, match_cnt)
         else:
             args = dict(node.args, **args)
             node.func(**args)
