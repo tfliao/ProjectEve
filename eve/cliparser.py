@@ -32,7 +32,8 @@ class CliParser:
             cls.ACCEPT_TYPE.add(type)
 
         def __init__(self, token):
-            self.desc = self.func = self.args = self.extra = None # shut up the PEP8
+            self.func = self.args = self.extra = None # shut up the PEP8
+            self.desc = ''
 
             self.hidden = True
             self.const_children = {}
@@ -55,12 +56,12 @@ class CliParser:
 
             m = re.match(__class__.RE_VAR_PATTERN, token)
             if m is None:
-                raise CliParser.BadTokenFormatException(f'token {token} is illegal')
+                raise CliParser.BadTokenFormatException('token {} is illegal'.format(token))
 
             target = m.group(1)
             type = ('str' if m.group(3) is None else m.group(3)).lower()
             if type not in __class__.ACCEPT_TYPE:
-                raise CliParser.BadTokenFormatException(f'type {type} is not supported')
+                raise CliParser.BadTokenFormatException('type {} is not supported'.format(type))
 
             listable = m.group(4) is not None
             self.props = {
@@ -68,7 +69,7 @@ class CliParser:
                 KEY_TYPE: type,
                 KEY_LIST: listable
             }
-            self.token = f'@{target}({type})' +  ('...' if listable else '')
+            self.token = '@{}({}){}'.format(target, type, '...' if listable else '')
             return TOKEN_TYPE_VAR
 
     """
@@ -81,15 +82,15 @@ class CliParser:
     @staticmethod
     def __help_command_handler(parse_info):
         cmdline = parse_info['cmdline'][:parse_info['match_cnt']]
-        print(f'Given cmdline: {cmdline}')
-        print(f' candidates:')
+        print('Given cmdline: {}'.format(cmdline))
+        print(' candidates:')
         for cnode in parse_info['const_nodes']:
             if not cnode.hidden:
-                print(f'\t{cnode.token}\t{cnode.desc}')
+                print('\t{}\t{}'.format(cnode.token, cnode.desc))
         vnode = parse_info['variable_node']
         if vnode is not None:
             if not vnode.hidden:
-                print(f'\t{vnode.token}\t{vnode.desc}')
+                print('\t{}\t{}'.format(vnode.token, vnode.desc))
 
     """
     init
