@@ -4,6 +4,7 @@
 import re
 
 TOKEN_TYPE_CONST = 'const'
+TOKEN_TYPE_OPTION = 'opt'
 TOKEN_TYPE_VAR = 'var' # target, type, ... properties will be set
 
 KEY_TARGET = 'target'
@@ -51,9 +52,14 @@ class CliParser:
             self.extra = None
 
         def __parse_token_type(self, token):
-            if not token.startswith('@'):
-                return TOKEN_TYPE_CONST
+            if token.startswith('@'):
+                return self.__parse_variable_token(token)
+            if token.startswith('-'):
+                return self.__parse_option_token(token)
 
+            return TOKEN_TYPE_CONST
+
+        def __parse_variable_token(self, token):
             m = re.match(__class__.RE_VAR_PATTERN, token)
             if m is None:
                 raise CliParser.BadTokenFormatException('token {} is illegal'.format(token))
@@ -71,6 +77,15 @@ class CliParser:
             }
             self.token = '@{}({}){}'.format(target, type, '...' if listable else '')
             return TOKEN_TYPE_VAR
+
+        def __parse_option_token(self, token):
+            if token.startswith('--'):
+                self.token = token[2:]
+                self.props = {KEY_TYPE: 'long'}
+            else:
+                self.token = token[1:]
+                self.props = {KEY_TYPE: 'short'}
+            return TOKEN_TYPE_OPTION
 
     """
     default functions
@@ -103,6 +118,10 @@ class CliParser:
             'help': CliParser.__help_command_handler
         }
         self.cast_fn = self.__init_cast_fn()
+        self.option_handler = {
+            'long': {},
+            'short': {}
+        }
 
     """
     private helper functions
@@ -124,6 +143,11 @@ class CliParser:
         return node
 
     def __find_child(self, node, token, args):
+        # check for option token
+        if token.startswith('-'):
+            self.__handle_options(token)
+            return node
+
         # list type will capture all following args
         if node.type == TOKEN_TYPE_VAR and node.props[KEY_LIST]:
             return self.__capture_arg(node, token, args)
@@ -157,6 +181,20 @@ class CliParser:
         }
         assert(type in self.cmd_handler)
         self.cmd_handler[type](parse_info)
+
+    def __handle_option(self, token, type):
+        if token not in self.option_handler[type]:
+            raise CliParser.CmdTreeParseException('Unknown option [{}]'.format(token))
+        node = self.option_handler[type][token]
+        node.func(**node.args)
+
+    def __handle_options(self, token):
+        if token.startswith('--'):
+            self.__handle_option(token[2:], 'long')
+        else:
+            opts = token[1:]
+            for opt in opts:
+                self.__handle_option(opt, 'short')
 
     """
     APIs here
@@ -198,7 +236,14 @@ class CliParser:
         """
         regiser handler when read help command,
         help_cmd_fn expect to accept the following arguments:
-            `parse_info`; same with bad_cmd_fn, but `handler_type` is 'help'
+            `parse_info`: {
+                `handle_type`: "help", indicate which bad_cmd_handler is called
+                `cmdline`: list of str, the full command from user
+                `match_cnt`: indicate # of token matchs some of rule
+                `node`: CliParser.CmdToken, which is last node matchs user's input
+                `variable_node`: CliParser.CmdToken, Noneable, child node that store input to some named args
+                `const_nodes`: list of CliParser.CmdToken, all children that match fixed str
+            }
         """
         self.cmd_handler['help'] = help_cmd_fn
 
@@ -217,6 +262,8 @@ class CliParser:
         node = self.root
         for token in tokens:
             cmd_token = CliParser.CmdToken(token)
+            if cmd_token.type == TOKEN_TYPE_OPTION:
+                raise CliParser.CmdTreeBuildException('bad format of token in command')
             if cmd_token.type == TOKEN_TYPE_CONST:
                 if cmd_token.token not in node.const_children:
                     node.const_children[cmd_token.token] = cmd_token
@@ -234,6 +281,28 @@ class CliParser:
         if inst is not None:
             default_args['self'] = inst
         node.setup(description, default_args, hidden, func, extra)
+
+    def add_option(self, inst, func, opts, default_args = {}, description = "", hidden=False, extra=None):
+        """
+        add option that change global setting, e.g. verbose
+
+        `inst`, `func`: handler function expected to be a member of class,
+                        thus (class instance - `inst`, member function `func`) defines func for a command
+        `opts`: list of str that associate with the handler function, longopt starts with '--', shortopt starts with '-'
+        `default_args`: predefine some arguments for handler function
+        `description`: description that used in auto-generating help message
+        `hidden`: indicate this command should be hidden from help message
+        `extra`: extra information that can be used in customized help/bad_cmd message
+        """
+        for o in opts:
+            cmd_token = CliParser.CmdToken(o)
+            if cmd_token.type != TOKEN_TYPE_OPTION:
+                raise CliParser.CmdTreeBuildException('bad format of option token')
+            default_args['self'] = inst
+            cmd_token.setup(description, default_args, hidden, func, extra)
+
+            opt_type = cmd_token.props[KEY_TYPE]
+            self.option_handler[opt_type][cmd_token.token] = cmd_token
 
     def invoke(self, tokens):
         """
@@ -294,6 +363,9 @@ details:
             > set fs ext4 # abbreviation
             > set files ext4 # prefix
     [v] 5. allow some commands to be hidden, which won't be shown in help
+    [v] 6. optional token (globally)
+        e.g. -V for verbse, which can present anywhere
+
 
 v show helpful messages when command line matchs no rules
 v show candidates of commands when passing special token (e.g. ? like cisco console)
