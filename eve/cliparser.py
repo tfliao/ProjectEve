@@ -97,7 +97,7 @@ class CliParser:
     """
     def __init__(self):
         self.root = CliParser.CmdToken("(root)")
-        self.keyword_help = 'help'
+        self.keyword_help = ['help']
         self.cmd_handler = {
             'bad': CliParser.__bad_command_handler,
             'help': CliParser.__help_command_handler
@@ -161,6 +161,15 @@ class CliParser:
     """
     APIs here
     """
+    def register_help_keywords(self, keyword):
+        """
+        register customized keyword for help
+        `keyword`: str or list of str, replace default help keyword
+        """
+        if not isinstance(keyword, list):
+            keyword = [str(keyword)]
+        self.keyword_help = keyword
+
     def register_type_caster(self, type, type_fn):
         """
         register customized type by providing it casting fn (from str to `type`)
@@ -235,7 +244,7 @@ class CliParser:
         node = self.root
         for token in tokens:
             # check if match help keyword
-            if token.lower() == self.keyword_help:
+            if token in self.keyword_help:
                 self.__call_cmd_handler('help', node, tokens, match_cnt)
                 return
 
@@ -244,6 +253,7 @@ class CliParser:
             if next is None:
                 self.__call_cmd_handler('bad', node, tokens, match_cnt)
                 return
+
             match_cnt += 1
             node = next
 
