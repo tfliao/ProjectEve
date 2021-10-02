@@ -94,6 +94,7 @@ class CliParser:
     @staticmethod
     def __bad_command_handler(parse_info):
         print('Command not found / Incomplete command.')
+        return 1
 
     @staticmethod
     def __help_command_handler(parse_info):
@@ -107,6 +108,7 @@ class CliParser:
         if vnode is not None:
             if not vnode.hidden:
                 print('\t{}\t{}'.format(vnode.token, vnode.help))
+        return 0
 
     """
     init
@@ -181,7 +183,7 @@ class CliParser:
             'const_nodes': node.const_children.values(),
         }
         assert(type in self.cmd_handler)
-        self.cmd_handler[type](parse_info)
+        return self.cmd_handler[type](parse_info)
 
     def __handle_option(self, token, type):
         if token not in self.option_handler[type]:
@@ -316,25 +318,23 @@ class CliParser:
         for token in tokens:
             # check if match help keyword
             if token in self.keyword_help:
-                self.__call_cmd_handler('help', node, tokens, match_cnt)
-                return
+                return self.__call_cmd_handler('help', node, tokens, match_cnt)
 
             # find most matching child
             next = self.__find_child(node, token, args)
             if next is None:
-                self.__call_cmd_handler('bad', node, tokens, match_cnt)
-                return
+                return self.__call_cmd_handler('bad', node, tokens, match_cnt)
 
             match_cnt += 1
             node = next
 
         if node.func is None:
             # stop in no executable node
-            self.__call_cmd_handler('bad', node, tokens, match_cnt)
+            return self.__call_cmd_handler('bad', node, tokens, match_cnt)
         else:
             args = dict(node.args, **args)
-            node.func(**args)
+            return node.func(**args)
 
     def invoke_argv(self):
         tokens = sys.argv[1:]
-        self.invoke(tokens)
+        return self.invoke(tokens)
