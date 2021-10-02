@@ -248,13 +248,13 @@ class CliParser:
         """
         self.cmd_handler['help'] = help_cmd_fn
 
-    def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False, extra=None):
+    def add_command(self, tokens, inst = None, func = None, default_args = {}, description="", hidden=False, extra=None):
         """
         add a command with the cmdline tokens to match and the func to execute
 
+        `tokens`: list of str that be used to match user's input, a token start with @ will capture user's input and pass it to handler function
         `inst`, `func`: handler function expected to be a member of class,
                         thus (class instance - `inst`, member function `func`) defines func for a command
-        `tokens`: list of str that be used to match user's input, a token start with @ will capture user's input and pass it to handler function
         `default_args`: predefine some arguments for handler function
         `description`: description that used in auto-generating help message
         `hidden`: indicate this command should be hidden from help message
@@ -283,7 +283,7 @@ class CliParser:
             default_args['self'] = inst
         node.setup(description, default_args, hidden, func, extra)
 
-    def add_option(self, inst, func, opts, default_args = {}, description = "", hidden=False, extra=None):
+    def add_option(self, opts, inst = None, func = None, default_args = {}, description = "", hidden=False, extra=None):
         """
         add option that change global setting, e.g. verbose
 
@@ -299,7 +299,8 @@ class CliParser:
             cmd_token = CliParser.CmdToken(o)
             if cmd_token.type != TOKEN_TYPE_OPTION:
                 raise CliParser.CmdTreeBuildException('bad format of option token')
-            default_args['self'] = inst
+            if inst is not None:
+                default_args['self'] = inst
             cmd_token.setup(description, default_args, hidden, func, extra)
 
             opt_type = cmd_token.props[KEY_TYPE]
