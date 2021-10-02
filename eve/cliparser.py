@@ -35,7 +35,7 @@ class CliParser:
 
         def __init__(self, token):
             self.func = self.args = self.extra = None # shut up the PEP8
-            self.desc = ''
+            self.help = ''
 
             self.hidden = True
             self.const_children = {}
@@ -45,8 +45,8 @@ class CliParser:
             self.props = None
             self.type = self.__parse_token_type(token)
 
-        def setup(self, desc = "", args = {}, hidden = True, func = None, extra = None):
-            self.desc = desc
+        def setup(self, help = "", args = {}, hidden = True, func = None, extra = None):
+            self.help = help
             self.func = func
             self.args = args
             self.hidden = hidden
@@ -102,11 +102,11 @@ class CliParser:
         print(' candidates:')
         for cnode in parse_info['const_nodes']:
             if not cnode.hidden:
-                print('\t{}\t{}'.format(cnode.token, cnode.desc))
+                print('\t{}\t{}'.format(cnode.token, cnode.help))
         vnode = parse_info['variable_node']
         if vnode is not None:
             if not vnode.hidden:
-                print('\t{}\t{}'.format(vnode.token, vnode.desc))
+                print('\t{}\t{}'.format(vnode.token, vnode.help))
 
     """
     init
@@ -248,7 +248,7 @@ class CliParser:
         """
         self.cmd_handler['help'] = help_cmd_fn
 
-    def add_command(self, tokens, inst = None, func = None, default_args = {}, description="", hidden=False, extra=None):
+    def add_command(self, tokens, inst = None, func = None, default_args = {}, help="", hidden=False, extra=None):
         """
         add a command with the cmdline tokens to match and the func to execute
 
@@ -256,7 +256,7 @@ class CliParser:
         `inst`, `func`: handler function expected to be a member of class,
                         thus (class instance - `inst`, member function `func`) defines func for a command
         `default_args`: predefine some arguments for handler function
-        `description`: description that used in auto-generating help message
+        `help`: description that used in auto-generating help message
         `hidden`: indicate this command should be hidden from help message
         `extra`: extra information that can be used in customized help/bad_cmd message
         """
@@ -281,9 +281,9 @@ class CliParser:
 
         if inst is not None:
             default_args['self'] = inst
-        node.setup(description, default_args, hidden, func, extra)
+        node.setup(help, default_args, hidden, func, extra)
 
-    def add_option(self, opts, inst = None, func = None, default_args = {}, description = "", hidden=False, extra=None):
+    def add_option(self, opts, inst = None, func = None, default_args = {}, help = "", hidden=False, extra=None):
         """
         add option that change global setting, e.g. verbose
 
@@ -291,7 +291,7 @@ class CliParser:
                         thus (class instance - `inst`, member function `func`) defines func for a command
         `opts`: list of str that associate with the handler function, longopt starts with '--', shortopt starts with '-'
         `default_args`: predefine some arguments for handler function
-        `description`: description that used in auto-generating help message
+        `help`: description that used in auto-generating help message
         `hidden`: indicate this command should be hidden from help message
         `extra`: extra information that can be used in customized help/bad_cmd message
         """
@@ -301,7 +301,7 @@ class CliParser:
                 raise CliParser.CmdTreeBuildException('bad format of option token')
             if inst is not None:
                 default_args['self'] = inst
-            cmd_token.setup(description, default_args, hidden, func, extra)
+            cmd_token.setup(help, default_args, hidden, func, extra)
 
             opt_type = cmd_token.props[KEY_TYPE]
             self.option_handler[opt_type][cmd_token.token] = cmd_token
