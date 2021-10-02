@@ -35,7 +35,7 @@ class CliParser:
 
         def __init__(self, token):
             self.func = self.args = self.extra = None # shut up the PEP8
-            self.desc = ''
+            self.help = ''
 
             self.hidden = True
             self.const_children = {}
@@ -45,8 +45,8 @@ class CliParser:
             self.props = None
             self.type = self.__parse_token_type(token)
 
-        def setup(self, desc = "", args = {}, hidden = True, func = None, extra = None):
-            self.desc = desc
+        def setup(self, help = "", args = {}, hidden = True, func = None, extra = None):
+            self.help = help
             self.func = func
             self.args = args
             self.hidden = hidden
@@ -94,6 +94,7 @@ class CliParser:
     @staticmethod
     def __bad_command_handler(parse_info):
         print('Command not found / Incomplete command.')
+        return 1
 
     @staticmethod
     def __help_command_handler(parse_info):
@@ -102,11 +103,12 @@ class CliParser:
         print(' candidates:')
         for cnode in parse_info['const_nodes']:
             if not cnode.hidden:
-                print('\t{}\t{}'.format(cnode.token, cnode.desc))
+                print('\t{}\t{}'.format(cnode.token, cnode.help))
         vnode = parse_info['variable_node']
         if vnode is not None:
             if not vnode.hidden:
-                print('\t{}\t{}'.format(vnode.token, vnode.desc))
+                print('\t{}\t{}'.format(vnode.token, vnode.help))
+        return 0
 
     """
     init
@@ -181,7 +183,7 @@ class CliParser:
             'const_nodes': node.const_children.values(),
         }
         assert(type in self.cmd_handler)
-        self.cmd_handler[type](parse_info)
+        return self.cmd_handler[type](parse_info)
 
     def __handle_option(self, token, type):
         if token not in self.option_handler[type]:
@@ -248,15 +250,15 @@ class CliParser:
         """
         self.cmd_handler['help'] = help_cmd_fn
 
-    def add_command(self, inst, func, tokens, default_args = {}, description="", hidden=False, extra=None):
+    def add_command(self, tokens, inst = None, func = None, default_args = {}, help="", hidden=False, extra=None):
         """
         add a command with the cmdline tokens to match and the func to execute
 
+        `tokens`: list of str that be used to match user's input, a token start with @ will capture user's input and pass it to handler function
         `inst`, `func`: handler function expected to be a member of class,
                         thus (class instance - `inst`, member function `func`) defines func for a command
-        `tokens`: list of str that be used to match user's input, a token start with @ will capture user's input and pass it to handler function
         `default_args`: predefine some arguments for handler function
-        `description`: description that used in auto-generating help message
+        `help`: description that used in auto-generating help message
         `hidden`: indicate this command should be hidden from help message
         `extra`: extra information that can be used in customized help/bad_cmd message
         """
@@ -281,9 +283,9 @@ class CliParser:
 
         if inst is not None:
             default_args['self'] = inst
-        node.setup(description, default_args, hidden, func, extra)
+        node.setup(help, default_args, hidden, func, extra)
 
-    def add_option(self, inst, func, opts, default_args = {}, description = "", hidden=False, extra=None):
+    def add_option(self, opts, inst = None, func = None, default_args = {}, help = "", hidden=False, extra=None):
         """
         add option that change global setting, e.g. verbose
 
@@ -291,7 +293,7 @@ class CliParser:
                         thus (class instance - `inst`, member function `func`) defines func for a command
         `opts`: list of str that associate with the handler function, longopt starts with '--', shortopt starts with '-'
         `default_args`: predefine some arguments for handler function
-        `description`: description that used in auto-generating help message
+        `help`: description that used in auto-generating help message
         `hidden`: indicate this command should be hidden from help message
         `extra`: extra information that can be used in customized help/bad_cmd message
         """
@@ -299,8 +301,9 @@ class CliParser:
             cmd_token = CliParser.CmdToken(o)
             if cmd_token.type != TOKEN_TYPE_OPTION:
                 raise CliParser.CmdTreeBuildException('bad format of option token')
-            default_args['self'] = inst
-            cmd_token.setup(description, default_args, hidden, func, extra)
+            if inst is not None:
+                default_args['self'] = inst
+            cmd_token.setup(help, default_args, hidden, func, extra)
 
             opt_type = cmd_token.props[KEY_TYPE]
             self.option_handler[opt_type][cmd_token.token] = cmd_token
@@ -315,25 +318,23 @@ class CliParser:
         for token in tokens:
             # check if match help keyword
             if token in self.keyword_help:
-                self.__call_cmd_handler('help', node, tokens, match_cnt)
-                return
+                return self.__call_cmd_handler('help', node, tokens, match_cnt)
 
             # find most matching child
             next = self.__find_child(node, token, args)
             if next is None:
-                self.__call_cmd_handler('bad', node, tokens, match_cnt)
-                return
+                return self.__call_cmd_handler('bad', node, tokens, match_cnt)
 
             match_cnt += 1
             node = next
 
         if node.func is None:
             # stop in no executable node
-            self.__call_cmd_handler('bad', node, tokens, match_cnt)
+            return self.__call_cmd_handler('bad', node, tokens, match_cnt)
         else:
             args = dict(node.args, **args)
-            node.func(**args)
+            return node.func(**args)
 
     def invoke_argv(self):
         tokens = sys.argv[1:]
-        self.invoke(tokens)
+        return self.invoke(tokens)
