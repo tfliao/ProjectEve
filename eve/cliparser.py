@@ -2,6 +2,7 @@
 # vim: set expandtab:
 
 import re
+import sys
 
 TOKEN_TYPE_CONST = 'const'
 TOKEN_TYPE_OPTION = 'opt'
@@ -333,46 +334,6 @@ class CliParser:
             args = dict(node.args, **args)
             node.func(**args)
 
-"""
-main feature:
-
-* define command with (tokens, func, desc)
-
-details:
-* special format in tokens, which support the following behaviors
-    [v] 1. pass token (string) as args with some name
-        * e.g.
-            ["set", "feature", "@enable"], handle_set_feature(enable)
-            > set feature true
-            pass string "true" as argument "enable" in handle_set_feature
-    [v] 2. allow single token that accept dynamic number of args in command
-        * e.g.
-            ["show", "slot", "@idlist..."], handle_show_slot(idlist)
-            > show slot 1 2 3
-            pass list of string ["1", "2", "3"] as argument "idlist" in handle_show_slot
-    [v] 3. type check/convert for arguments
-        * e.g.
-            ["show", "slot", "@idlist(int)..."], handle_show_slot(idlist)
-            > show slot 1 2 3
-            pass list of int [1, 2, 3] as argument "idlist" in handle_show_slot
-    [v] 4.1 match prefix
-    4.2 match abbreviation
-        * e.g.
-            ["set", "fs|filesystem", "@fstype"], handle_set_filesystem(fstype)
-            all the following commands matchs, if no other possible token start with files*
-            > set fs ext4 # abbreviation
-            > set files ext4 # prefix
-    [v] 5. allow some commands to be hidden, which won't be shown in help
-    [v] 6. optional token (globally)
-        e.g. -V for verbse, which can present anywhere
-
-
-v show helpful messages when command line matchs no rules
-v show candidates of commands when passing special token (e.g. ? like cisco console)
-
-* interactive console for all function above
-    * provide shell-like experience
-        1. arrows (up/down/left/right)
-        2. ^C to clean current command, type exit to leave
-
-"""
+    def invoke_argv(self):
+        tokens = sys.argv[1:]
+        self.invoke(tokens)
