@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # vim: ts=4:sw=4:expandtab
 import argparse
+from eve.cliparser import CliParser
 import requests
 import re
 import unicodedata
@@ -127,7 +128,7 @@ class Comic(CmdBase):
             time.sleep(60)
         return 0
 
-    def run_list2(self):
+    def run_list(self):
         db = self._db()
         rows = db.table_select(self.__table)
         print('Total {} records'.format(len(rows)))
@@ -141,31 +142,40 @@ class Comic(CmdBase):
 
         return 0
 
-    def run_add2(self):
-        args = self._args
+    def run_add(self, url):
         db = self._db()
 
-        if args.url is None:
-            self.logerror('url is required for action [add]')
-            return 1
-        r = self.__scan_url(args.url)
+        r = self.__scan_url(url)
         if r['s'] != 'good':
             self.logerror('not acceptable url to add')
             return 1
         max_id = db.table_max(self.__table, 'id')
         next_id = 1 if max_id is None else max_id + 1
-        db.table_update(self.__table, {'id': next_id, 'name': r['n'], 'url': args.url, 'status': r['s'], 'latest_update': r['d'], 'latest_episode': r['e'], 'latest_url': r['u']})
-        self.loginfo('comic [{}] with url:[{}] added'.format(r['n'], args.url))
+        db.table_update(self.__table, {'id': next_id, 'name': r['n'], 'url': url, 'status': r['s'], 'latest_update': r['d'], 'latest_episode': r['e'], 'latest_url': r['u']})
+        self.loginfo('comic [{}] with url:[{}] added'.format(r['n'], url))
         return 0
-    # =======================
 
     def _run(self):
+        self.__setup_db()
+        cp = CliParser()
+
+        cp.add_command(['list'], inst=self, func=Comic.run_list, help="list all comics")
+        cp.add_command(['add'], help="add new comic from @url")
+        cp.add_command(['add', "@url"], inst=self, func=Comic.run_add, help="add new comic from @url")
+        cp.add_command(['daemon'], help="config comic daemon", hidden=True)
+
+        cp.invoke(self._args.params)
+
+
+    # =======================
+
+    def _run_orig(self):
         args = self._args
         self.__setup_db()
         if args.action == 'list':
-            return self.run_list2()
+            return self.run_list()
         elif args.action == 'add':
-            return self.run_add2()
+            return self.run_add()
         elif args.action == 'del':
             return self.run_del()
         elif args.action == 'scan':
@@ -174,11 +184,7 @@ class Comic(CmdBase):
             raise
 
     def _prepare_parser(self, parser):
-        parser.add_argument('action', choices=['list', 'add', 'del', 'scan'])
-        parser.add_argument('--url', '-u', help='specify url to scan')
-        parser.add_argument('--id', '-i', help='indicate which record to delete')
-        parser.add_argument('--all', '-a', action='store_true', default=False,
-                            help='force scan all url including dead comic')
+        parser.add_argument('params', nargs='*', default=[])
 
     def _cut_str(self, _str, _len):
         _str = str(_str)
@@ -193,96 +199,5 @@ class Comic(CmdBase):
                 return r + ' '
         raise None # should not come here
 
-    def run_list(self):
-        db = self._db()
-        rows = db.table_select(self.__table)
-        print('Total {} records'.format(len(rows)))
-
-        for row in rows:
-            name = self._cut_str(row['name'], 40)
-            episode = self._cut_str(row['last_episode'], 10)
-            tag = ''
-            if row['is_dead'] != 0:
-                tag = 'removed'
-            print('{:4d} | {} | {} | {} | {} | {}'.format(row['id'], name, episode, row['last_update'], row['url'], tag))
-
-        return 0
-
-    def run_add(self):
-        args = self._args
-        db = self._db()
-
-        if args.url is None:
-            self.logerror('url is required for action [add]')
-            return 1
-        r = self.__scan_url(args.url)
-        if r is None:
-            self.logerror('not acceptable url to add')
-            return 1
-        max_id = db.table_max(self.__table, 'id')
-        next_id = 1 if max_id is None else max_id + 1
-        db.table_update(self.__table, {'id': next_id, 'name': r[0], 'url': args.url, 'last_update': r[1], 'last_episode': r[2], 'is_dead': r['4']})
-        self.loginfo('comic [{}] with url:[{}] added'.format(r[0], args.url))
-        return 0
-
-    def run_del(self):
-        args = self._args
-        db = self._db()
-
-        if args.id is None:
-            self.logerror('id is required for action [del]')
-            return 1
-
-        r = db.table_count(self.__table, {'id': args.id})
-        if r == 0:
-            self.logerror('No record with such id [{}]'.format(args.id))
-            return 1
-
-        r = db.table_delete(self.__table, {'id': args.id}, 1)
-        if not r:
-            self.logerror('Failed to delete record with id:[{}]'.format(args.id))
-            return 1
-
-        self.loginfo('Record with id:[{}] deleted'.format(args.id))
-        return 0
-
-    def run_scan(self):
-        db = self._db()
-        rows = db.table_select(self.__table)
-        random.shuffle(rows)
-
-        update_cnt = 0
-        for row in rows:
-            rid = row['id']
-            name = row['name']
-            url = row['url']
-            last_update = row['last_update']
-            last_episode = row['last_episode']
-            is_dead = row['is_dead']
-
-            if not self._args.all and is_dead != 0:
-                continue
-
-            time.sleep(random.randint(0, 3))
-            print('Checking {} ... '.format(name), end='')
-            r = self.__scan_url(url)
-            if r[4]:
-                print('dead')
-                db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update, 'last_episode': episode, 'is_dead': 1})
-                continue
-            update = r[1]
-            episode = r[2]
-            epurl = self.baseurl + r[3]
-            if episode != last_episode:
-                update_cnt += 1
-                print()
-                print('> updated from {}({}) to {}({}), url: {}'.format(last_episode, last_update, episode, update, epurl))
-                db.table_update(self.__table, {'id': rid, 'name': name, 'url': url, 'last_update': update, 'last_episode': episode, 'is_dead': 0})
-            else:
-                print('nothing new')
-        self.loginfo('Total {} comic updated'.format(update_cnt))
-        return 0
-
 if __name__ == '__main__':
     Comic('Comic').run()
-
