@@ -11,3 +11,13 @@ def cht_width(msg):
     if not isinstance(msg, str):
         msg = '{}'.format(msg)
     return len(msg) + cht_len(msg)
+
+__EVE_DB_FILEPATH = ''
+
+def db_filepath():
+    global __EVE_DB_FILEPATH
+    return __EVE_DB_FILEPATH
+
+def set_dbfilepath(filepath):
+    global __EVE_DB_FILEPATH
+    __EVE_DB_FILEPATH = filepath

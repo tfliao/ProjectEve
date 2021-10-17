@@ -42,6 +42,12 @@ class EveDB:
         else:
             return r[0]['value']
 
+    def evedb_get(self, key):
+        return self.__evedb_get(key)
+
+    def evedb_set(self, key, value):
+        return self.__evedb_set(key, value)
+
     def __full_table_name(self, table):
         return '{}_{}'.format(self._namespace, table)
 
