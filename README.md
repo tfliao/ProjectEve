@@ -37,7 +37,7 @@ __alias__ = {
 All command need to inherit CmdBase to get standard controll flow and shared utility functions. A classical command will look like:
 ```
 #!/usr/bin/python3
-from cmdbase improt CmdBase
+from cmdbase import CmdBase
 class Command(CmdBase):
     version = ''
     desc = ''
