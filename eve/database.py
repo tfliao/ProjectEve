@@ -196,16 +196,16 @@ class EveDB:
         table = self.__full_table_name(table)
         if not isinstance(updates, dict) or not isinstance(conditions, dict) :
             raise 'updates or conditions format error'
-        
+
         if len(updates) == 0:
             # no updates
             return
 
         cond, cond_args = self.__build_conditions(conditions)
-        
+
         upd = ','.join(['`{}` = ?'.format(key) for key in updates.keys()])
         upd_args = list(updates.values())
-        
+
         sql = base_query.format(table, upd, cond)
         args = tuple(upd_args + list(cond_args))
 
