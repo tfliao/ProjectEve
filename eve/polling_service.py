@@ -1,9 +1,11 @@
 #!/usr/bin/python
 # vim: set expandtab:
 
-import os, psutil
+import os, sys
+import psutil
 import importlib
 import time
+import logging
 
 import eve.common
 from cmdbase import CmdBase
@@ -14,8 +16,12 @@ class PollingJob:
     def __init__(self, progname):
         self._dbfile = None
         self._dbconn = None
+        self.logger = None
         self._prog = progname
         pass
+
+    def set_logger(self, logger):
+        self.logger = logger
 
     def process_one(self):
         raise "No implement in base class"
@@ -123,6 +129,21 @@ class PollingServiceDBHelper:
         rows = db.table_select(cls.__table)
         return rows
 
+    @classmethod
+    def consume_job_change(cls, jobname):
+        cls.setupdb()
+        db = cls.__getdbconn()
+        rows = db.table_select(cls.__table, {'jobname': jobname})
+        if len(rows) == 0:
+            return False
+        else:
+            record = rows[0]
+            record['interval'] = record['new_interval']
+            record['enable'] = record['new_enable']
+        db.table_update(cls.__table, record)
+        return True
+
+
 class PollingServiceJob(PollingJob):
     def __init__(self):
         PollingJob.__init__(self, PROGNAME)
@@ -133,7 +154,7 @@ class PollingServiceJob(PollingJob):
         self.daemon = daemon
 
     def process_one(self):
-        print('TODO: check database for any updates')
+        self.logger.debug('TODO: check database for any updates')
         pass
 
 class PollingDaemon:
@@ -141,33 +162,71 @@ class PollingDaemon:
     SERVICE_JOB_INTERVAL = 30
 
     def __init__(self):
+        self.logger = None
         self.jobs = {} # jobname => obj
+
+        self.__init_logger()
         service_job = self.__create_job(__class__.SERVICE_JOB_NAME)
         if service_job is None:
             raise Exception()
         service_job.set_daemon(self)
         self.__save_job(__class__.SERVICE_JOB_NAME, service_job, __class__.SERVICE_JOB_INTERVAL)
+        self.__load_jobs()
+
+    def __init_logger(self):
+        logger = logging.getLogger('PollingDaemon')
+        try:
+            logger.setLevel('DEBUG')
+        except ValueError as e:
+            sys.stderr.write(str(e) + ', fallback to INFO\n')
+            logger.setLevel(logging.INFO)
+
+        handler = logging.StreamHandler(sys.stdout)
+        logformat = '[%(name)s][%(asctime)s][%(levelname)s] %(message)s'
+        formatter = logging.Formatter(logformat)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        self.logger = logger
+
+    def logger(self):
+        return self.logger
+
+    def __load_jobs(self):
+        for job in PollingServiceDBHelper.get_jobstatus():
+            r = self.new_job(job['jobname'], job['new_interval'])
+            if not r:
+                PollingServiceDBHelper.update_jobstatus(job['jobname'], 'err,create')
+            PollingServiceDBHelper.consume_job_change(job['jobname'])
 
     def __create_job(self, jobname):
         if jobname in self.jobs:
+            self.logger.debug('job[{}] already exists in joblist'.format(jobname))
             return None
         try:
             mod, cls = jobname.split('#')
             module = importlib.import_module(mod)
             inst = getattr(module, cls)()
+            inst.set_logger(self.logger)
+            self.logger.info('job[{}] created'.format(jobname))
             return inst
-        except:
+        except Exception as e:
+            self.logger.error('job[{}] creation failed, ex: {}'.format(jobname, e.message))
             return None
 
     def __save_job(self, jobname, cls, interval):
         self.jobs[jobname] = {
+            'name': jobname,
             'inst': cls,
             'interval': interval,
             'next_ts': time.monotonic()
         }
+        self.logger.info('job[{}] saved in joblist'.format(jobname))
         return True
 
     def new_job(self, jobname, interval):
+        if not isinstance(interval, int):
+            self.looger.error('polling interval should be integer')
+            return False
         inst = self.__create_job(jobname)
         if inst is None:
             return False
@@ -177,8 +236,10 @@ class PollingDaemon:
         while True:
             for job in self.jobs.values():
                 if time.monotonic() > job['next_ts']:
+                    self.logger.debug('executing job[{}]'.format(job['name']))
                     job['inst'].process_one()
                     job['next_ts'] = time.monotonic() + job['interval']
+                    self.logger.debug('executed job[{}], schedule next'.format(job['name']))
             time.sleep(1)
 
 class PollingServiceCLI(CmdBase):
@@ -201,7 +262,12 @@ class PollingServiceCLI(CmdBase):
         cp.add_command(['status'],  inst=self, func=PollingServiceCLI.status,  help="show status of polling service")
         cp.add_command(['jobstatus'],  inst=self, func=PollingServiceCLI.jobstatus,  help="show status of polling jobs")
 
+        cp.add_command(['dummyjob'], inst=self, func=PollingServiceCLI.dummyjob, help='insert dummy job')
+
         cp.invoke(self._args.params)
+
+    def dummyjob(self):
+        PollingServiceAPI.add_job(TestJob, 5)
 
     def __is_running(self):
         db = self._db()
@@ -257,8 +323,9 @@ class PollingServiceCLI(CmdBase):
 class PollingServiceAPI:
     @staticmethod
     def __to_jobname(polling_job):
-        cls = type(polling_job)
-        return '#'.join([cls.__module__, cls.__name__])
+        if not isinstance(polling_job, type):
+            polling_job = type(polling_job)
+        return '#'.join([polling_job.__module__, polling_job.__name__])
 
     @staticmethod
     def add_job(polling_job, interval, enable = True):
@@ -274,3 +341,11 @@ class PollingServiceAPI:
     def set_job_interval(cls, polling_job, interval):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, interval = interval)
+
+class TestJob(PollingJob):
+    def __init__(self):
+        PollingJob.__init__(self, PROGNAME)
+        pass
+
+    def process_one(self):
+        self.logger.debug('[pid{}] wakeup, ts: {}'.format(os.getpid(), time.monotonic()))
