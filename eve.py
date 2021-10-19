@@ -5,6 +5,7 @@ import os, sys
 import copy
 import importlib
 import configparser
+import eve.common
 
 # eve [module] <feature> feature_args ...
 class Eve:
@@ -40,6 +41,7 @@ class Eve:
         self._eve_db = os.environ.get(self._eve_db_key, self._eve_db_def)
         if not self._eve_db.startswith('/'):
             self._eve_db = '{}/{}'.format(script_dir, self._eve_db)
+        eve.common.set_dbfilepath(self._eve_db)
 
         self._script = os.path.basename(__file__)
         if os.path.isfile(self._eve_cfg):
@@ -212,7 +214,6 @@ class Eve:
     def __exec(self, cls):
         m = importlib.import_module('{}.{}'.format(cls['module'], cls['name']))
         c = getattr(m, cls['classname'])(cls['name'], cls['prefix'], cls['classname'])
-        c.set_dbfile(self._eve_db)
         return c.run()
 
     # eve <cr> | ? | --help | -h | (unknown module)

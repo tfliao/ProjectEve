@@ -5,6 +5,7 @@ import logging
 import os, sys
 import subprocess
 
+import eve.common
 from eve.database import EveDB
 
 class CmdBase:
@@ -68,7 +69,7 @@ class CmdBase:
    def _db(self):
       if self._dbconn is None:
          if self._dbfile is None:
-            raise
+            self._dbfile = eve.common.db_filepath()
          self._dbconn = EveDB(self._dbfile)
          self._dbconn.set_namespace(self._prog)
       return self._dbconn
