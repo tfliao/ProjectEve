@@ -175,11 +175,11 @@ class PollingDaemon:
     SERVICE_JOB_NAME = 'eve.polling_service#PollingServiceJob'
     SERVICE_JOB_INTERVAL = 30
 
-    def __init__(self):
+    def __init__(self, loglevel = 'DEBUG'):
         self.logger = None
         self.jobs = {} # jobname => obj
 
-        self.__init_logger()
+        self.__init_logger(loglevel)
         service_job = self.__create_job(__class__.SERVICE_JOB_NAME)
         if service_job is None:
             raise Exception()
@@ -187,10 +187,10 @@ class PollingDaemon:
         self.__save_job(__class__.SERVICE_JOB_NAME, service_job, __class__.SERVICE_JOB_INTERVAL)
         self.__load_jobs()
 
-    def __init_logger(self):
+    def __init_logger(self, level):
         logger = logging.getLogger('PollingDaemon')
         try:
-            logger.setLevel('DEBUG')
+            logger.setLevel(level)
         except ValueError as e:
             sys.stderr.write(str(e) + ', fallback to INFO\n')
             logger.setLevel(logging.INFO)
@@ -311,13 +311,14 @@ class PollingServiceCLI(CmdBase):
         PollingServiceDBHelper.setupdb(self._db())
         cp = CliParser()
 
-        cp.add_command(['start'],   inst=self, func=PollingServiceCLI.start,   help="start polling service")
-        cp.add_command(['stop'],    inst=self, func=PollingServiceCLI.stop,    help="stop polling service")
-        cp.add_command(['restart'], inst=self, func=PollingServiceCLI.restart, help="restart polling service")
-        cp.add_command(['status'],  inst=self, func=PollingServiceCLI.status,  help="show status of polling service")
-        cp.add_command(['jobstatus'],  inst=self, func=PollingServiceCLI.jobstatus,  help="show status of polling jobs")
+        cp.add_command(['start'],            inst=self, func=PollingServiceCLI.start,     help="start polling service")
+        cp.add_command(['start', 'debug'],   inst=self, func=PollingServiceCLI.start,     help="start polling service in foreground mode", default_args={'debug': True})
+        cp.add_command(['stop'],             inst=self, func=PollingServiceCLI.stop,      help="stop polling service")
+        cp.add_command(['restart'],          inst=self, func=PollingServiceCLI.restart,   help="restart polling service")
+        cp.add_command(['status'],           inst=self, func=PollingServiceCLI.status,    help="show status of polling service")
+        cp.add_command(['jobstatus'],        inst=self, func=PollingServiceCLI.jobstatus, help="show status of polling jobs")
 
-        cp.add_command(['dummyjob'], inst=self, func=PollingServiceCLI.dummyjob, help='insert dummy job')
+        cp.add_command(['dummyjob'],         inst=self, func=PollingServiceCLI.dummyjob,  help='insert dummy job')
 
         cp.invoke(self._args.params)
 
@@ -337,11 +338,14 @@ class PollingServiceCLI(CmdBase):
         proc_cmdline = ' '.join(process.cmdline())
         return proc_cmdline == cmdline
 
-    def start(self):
+    def start(self, debug = False):
         if self.__is_running():
             self.loginfo('polling service already started')
             return True
-        return PollingDaemon().run_daemon()
+        if not debug:
+            return PollingDaemon('INFO').run_daemon()
+        else:
+            return PollingDaemon('DEBUG').run()
 
     def stop(self):
         if not self.__is_running():
