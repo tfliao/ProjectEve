@@ -33,13 +33,13 @@ class PollingJob:
     def _db(self):
         if self._dbconn is None:
             if self._dbfile is None:
-                raise
+                self._dbfile = eve.common.db_filepath()
             self._dbconn = EveDB(self._dbfile)
             self._dbconn.set_namespace(self._prog)
         return self._dbconn
     ### end of db facilities ##
 
-PROGNAME='pollingservice'
+PROGNAME='polling_service'
 
 class PollingServiceDBHelper:
     __table = 'jobs'
@@ -333,12 +333,12 @@ class PollingServiceAPI:
         return PollingServiceDBHelper.update_job(jobname, interval = interval, enable = enable)
 
     @staticmethod
-    def enable_job(cls, polling_job, enable=True):
+    def enable_job(polling_job, enable=True):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, enable = enable)
     
     @staticmethod
-    def set_job_interval(cls, polling_job, interval):
+    def set_job_interval(polling_job, interval):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, interval = interval)
 
