@@ -116,12 +116,13 @@ class ComicScanner:
 
 class ComicJob(PollingJob):
     def __init__(self):
-        super.__init__(PROGNAME)
+        super().__init__(PROGNAME)
         self.comic_list = []
 
     def fetch_list(self):
         if len(self.comic_list) != 0:
             return
+        self.logger.debug('fetch list from db again')
         self.comic_list = self._db().table_select(ComicDBConstant.table)
         random.shuffle(self.comic_list)
 
@@ -132,11 +133,13 @@ class ComicJob(PollingJob):
             return False
         
         row = self.comic_list.pop()
-        ret = ComicScanner.scan_one(row)
+        ret = ComicScanner.scan_one(row, self._db())
         if ret not in [ComicScanner.RET_UPDATED, ComicScanner.RET_UPTODATE]:
             self.logger.error('scan {} failed, result: {}'.format(row['name'], ret))
         elif ret == ComicScanner.RET_UPDATED:
             self.logger.info('{} updated'.format(row['name']))
+        else:
+            self.logger.debug('no update for {}'.format(row['name']))
         return True
 
 class Comic(CmdBase):
@@ -164,7 +167,7 @@ class Comic(CmdBase):
             if row['status'] not in ['good', 'rescan']:
                 continue
 
-            ComicScanner.scan_one(row)
+            ComicScanner.scan_one(row, db)
             time.sleep(60)
         return 0
 
@@ -185,13 +188,13 @@ class Comic(CmdBase):
     def run_add(self, url):
         db = self._db()
 
-        r = self.__scan_url(url)
+        r = ComicScanner.scan_url(url)
         if r['s'] != 'good':
             self.logerror('not acceptable url to add')
             return 1
         max_id = db.table_max(ComicDBConstant.table, 'id')
         next_id = 1 if max_id is None else max_id + 1
-        db.table_update(self.__table, {'id': next_id, 'name': r['n'], 'url': url, 'status': r['s'], 'latest_update': r['d'], 'latest_episode': r['e'], 'latest_url': r['u']})
+        db.table_update(ComicDBConstant.table, {'id': next_id, 'name': r['n'], 'url': url, 'status': r['s'], 'latest_update': r['d'], 'latest_episode': r['e'], 'latest_url': r['u']})
         self.loginfo('comic [{}] with url:[{}] added'.format(r['n'], url))
         return 0
 
@@ -225,7 +228,7 @@ class Comic(CmdBase):
         cp.add_command(['delete', "@id"], inst=self, func=Comic.run_delete, help="delete comic with @id from list")
         cp.add_command(['scan'], inst=self, func=Comic.run_scan, help="scan all comic with good state")
         cp.add_command(['daemon'], help="config comic daemon", hidden=True)
-        cp.add_command(['daemon', 'enable', '@enable'], inst=self, func=Comic.daemon_enable, help="enable daemon feature", hidden=True)
+        cp.add_command(['daemon', 'enable', '@enable(bool)'], inst=self, func=Comic.daemon_enable, help="enable daemon feature", hidden=True)
 
         cp.invoke(self._args.params)
 
