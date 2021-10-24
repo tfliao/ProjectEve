@@ -6,6 +6,7 @@ import psutil
 import importlib
 import time
 import logging
+import signal
 
 import eve.common
 from cmdbase import CmdBase
@@ -68,6 +69,19 @@ class PollingServiceDBHelper:
     ]
 
     __dbconn = None
+
+    @classmethod
+    def setdaemoninfo(cls, pid, cmdline):
+        db = cls.__getdbconn()
+        db.evedb_set('{}.pid'.format(PROGNAME), pid)
+        db.evedb_set('{}.cmdline'.format(PROGNAME), cmdline)
+
+    @classmethod
+    def getdaemoninfo(cls):
+        db = cls.__getdbconn()
+        pid = db.evedb_get('{}.pid'.format(PROGNAME))
+        cmdline = db.evedb_get('{}.cmdline'.format(PROGNAME))
+        return (pid, cmdline)
 
     @classmethod
     def __getdbconn(cls):
@@ -197,9 +211,12 @@ class PollingDaemon:
                 self.logger.debug('skip creating err jobs')
                 continue
             r = self.new_job(job['jobname'], job['new_interval'])
+
             if not r:
                 PollingServiceDBHelper.update_jobstatus(job['jobname'], 'err,create')
-            PollingServiceDBHelper.consume_job_change(job['jobname'])
+            else:
+                PollingServiceDBHelper.update_jobstatus(job['jobname'], 'good,loaded')
+                PollingServiceDBHelper.consume_job_change(job['jobname'])
 
     def __create_job(self, jobname):
         if jobname in self.jobs:
@@ -259,6 +276,27 @@ class PollingDaemon:
             self.jobs = {k: v for k, v in self.jobs.items() if v['healthy']}
             time.sleep(1)
 
+    @staticmethod
+    def sighdr(sig, frame):
+        print('Receive signal, stop now')
+        PollingServiceDBHelper.setdaemoninfo("", "")
+        os._exit(0)
+
+    def run_daemon(self):
+        r = os.fork()
+        if r < 0:
+            return False
+        if r > 0:
+            print('daemon start running in pid[{}]'.format(r))
+            return True
+
+        # child process here
+        pid = os.getpid()
+        signal.signal(signal.SIGUSR1, PollingDaemon.sighdr)
+        cmdline = ' '.join(psutil.Process(pid).cmdline())
+        PollingServiceDBHelper.setdaemoninfo(pid, cmdline)
+        self.run()
+
 class PollingServiceCLI(CmdBase):
     version = '1.0.0'
     desc = 'Shared polling service for project eve'
@@ -287,9 +325,7 @@ class PollingServiceCLI(CmdBase):
         PollingServiceAPI.add_job(TestJob, 5)
 
     def __is_running(self):
-        db = self._db()
-        pid = db.evedb_get('{}.pid'.format(PROGNAME))
-        cmdline = db.evedb_get('{}.cmdline'.format(PROGNAME))
+        pid, cmdline = PollingServiceDBHelper.getdaemoninfo()
         if pid is None or len(pid) == 0:
             return False
 
@@ -303,14 +339,16 @@ class PollingServiceCLI(CmdBase):
 
     def start(self):
         if self.__is_running():
+            self.loginfo('polling service already started')
             return True
-        PollingDaemon().run()
-        return False
+        return PollingDaemon().run_daemon()
 
     def stop(self):
         if not self.__is_running():
             return True
-        raise "Not yet implemented"
+        db = self._db()
+        pid, _ = PollingServiceDBHelper.getdaemoninfo()
+        os.kill(int(pid), signal.SIGUSR1)
         return True
 
     def restart(self):
