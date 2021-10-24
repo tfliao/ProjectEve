@@ -193,6 +193,9 @@ class PollingDaemon:
 
     def __load_jobs(self):
         for job in PollingServiceDBHelper.get_jobstatus():
+            if job['status'].startswith('err'):
+                self.logger.debug('skip creating err jobs')
+                continue
             r = self.new_job(job['jobname'], job['new_interval'])
             if not r:
                 PollingServiceDBHelper.update_jobstatus(job['jobname'], 'err,create')
@@ -210,7 +213,7 @@ class PollingDaemon:
             self.logger.info('job[{}] created'.format(jobname))
             return inst
         except Exception as e:
-            self.logger.error('job[{}] creation failed, ex: {}'.format(jobname, e.message))
+            self.logger.error('job[{}] creation failed, ex: {}'.format(jobname, e))
             return None
 
     def __save_job(self, jobname, cls, interval):
@@ -218,7 +221,8 @@ class PollingDaemon:
             'name': jobname,
             'inst': cls,
             'interval': interval,
-            'next_ts': time.monotonic()
+            'next_ts': time.monotonic(),
+            'healthy': True
         }
         self.logger.info('job[{}] saved in joblist'.format(jobname))
         return True
@@ -235,11 +239,24 @@ class PollingDaemon:
     def run(self):
         while True:
             for job in self.jobs.values():
+                if not job['healthy']:
+                    continue
                 if time.monotonic() > job['next_ts']:
-                    self.logger.debug('executing job[{}]'.format(job['name']))
-                    job['inst'].process_one()
-                    job['next_ts'] = time.monotonic() + job['interval']
-                    self.logger.debug('executed job[{}], schedule next'.format(job['name']))
+                    self.logger.debug('>> job[{}]'.format(job['name']))
+                    succ = True
+                    try:
+                        job['inst'].process_one()
+                    except:
+                        succ = False
+                        pass
+                    if succ:
+                        job['next_ts'] = time.monotonic() + job['interval']
+                        self.logger.debug('<< job[{}]'.format(job['name']))
+                    else:
+                        job['healthy'] = False
+                        self.logger.error('<< job[{}] finished with exception, mark as error'.format(job['name']))
+                        PollingServiceDBHelper.update_jobstatus(job['name', 'err,exception'])
+            self.jobs = {k: v for k, v in self.jobs.items() if v['healthy']}
             time.sleep(1)
 
 class PollingServiceCLI(CmdBase):
