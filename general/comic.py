@@ -231,6 +231,21 @@ class Comic(CmdBase):
             self.logerror('failed to delete comic [{}] with id: [{}]'.format(name, id))
             return 1
 
+    def run_mark_viewed(self, idlist):
+        db = self._db()
+        for id in idlist:
+            rows = db.table_select(ComicDBConstant.table, {'id': id})
+            if len(rows) != 1:
+                self.logerror('comic with id={} not found, skip'.format(id))
+                continue
+            row = rows[0]
+            changes = {
+                'viewed_episode': row['latest_episode'],
+                'viewed_update': row['latest_update'],
+                'viewed_url': row['latest_url']}
+            db.table_update_condition(ComicDBConstant.table, changes, {'id': id})
+            self.loginfo('mark {} as viewed'.format(row['name']))
+
     def daemon_enable(self, enable):
         PollingServiceAPI.add_job(ComicJob, interval=60, enable=enable)
 
@@ -243,7 +258,9 @@ class Comic(CmdBase):
         cp.add_command(['add'], help="add new comic from @url")
         cp.add_command(['add', "@url"], inst=self, func=Comic.run_add, help="add new comic from @url")
         cp.add_command(['delete'], help="delete comic with @id from list")
-        cp.add_command(['delete', "@id"], inst=self, func=Comic.run_delete, help="delete comic with @id from list")
+        cp.add_command(['delete', "@id(int)"], inst=self, func=Comic.run_delete, help="delete comic with @id from list")
+        cp.add_command(['delete'], help="delete comic with @id from list")
+        cp.add_command(['mark', 'viewed', '@idlist(int)...'], inst=self, func=Comic.run_mark_viewed, help='mark some comics as viewed (to latest)')
         cp.add_command(['scan'], inst=self, func=Comic.run_scan, help="scan all comic with good state")
         cp.add_command(['daemon'], help="config comic daemon", hidden=True)
         cp.add_command(['daemon', 'enable', '@enable(bool)'], inst=self, func=Comic.daemon_enable, help="enable daemon feature", hidden=True)
