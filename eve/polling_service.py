@@ -6,6 +6,7 @@ import psutil
 import importlib
 import time
 import logging
+import signal
 
 import eve.common
 from cmdbase import CmdBase
@@ -33,13 +34,13 @@ class PollingJob:
     def _db(self):
         if self._dbconn is None:
             if self._dbfile is None:
-                raise
+                self._dbfile = eve.common.db_filepath()
             self._dbconn = EveDB(self._dbfile)
             self._dbconn.set_namespace(self._prog)
         return self._dbconn
     ### end of db facilities ##
 
-PROGNAME='pollingservice'
+PROGNAME='polling_service'
 
 class PollingServiceDBHelper:
     __table = 'jobs'
@@ -68,6 +69,19 @@ class PollingServiceDBHelper:
     ]
 
     __dbconn = None
+
+    @classmethod
+    def setdaemoninfo(cls, pid, cmdline):
+        db = cls.__getdbconn()
+        db.evedb_set('{}.pid'.format(PROGNAME), pid)
+        db.evedb_set('{}.cmdline'.format(PROGNAME), cmdline)
+
+    @classmethod
+    def getdaemoninfo(cls):
+        db = cls.__getdbconn()
+        pid = db.evedb_get('{}.pid'.format(PROGNAME))
+        cmdline = db.evedb_get('{}.cmdline'.format(PROGNAME))
+        return (pid, cmdline)
 
     @classmethod
     def __getdbconn(cls):
@@ -143,7 +157,6 @@ class PollingServiceDBHelper:
         db.table_update(cls.__table, record)
         return True
 
-
 class PollingServiceJob(PollingJob):
     def __init__(self):
         PollingJob.__init__(self, PROGNAME)
@@ -154,18 +167,18 @@ class PollingServiceJob(PollingJob):
         self.daemon = daemon
 
     def process_one(self):
-        self.logger.debug('TODO: check database for any updates')
+        # TODO: check database updates
         pass
 
 class PollingDaemon:
     SERVICE_JOB_NAME = 'eve.polling_service#PollingServiceJob'
     SERVICE_JOB_INTERVAL = 30
 
-    def __init__(self):
+    def __init__(self, loglevel = 'DEBUG'):
         self.logger = None
         self.jobs = {} # jobname => obj
 
-        self.__init_logger()
+        self.__init_logger(loglevel)
         service_job = self.__create_job(__class__.SERVICE_JOB_NAME)
         if service_job is None:
             raise Exception()
@@ -173,10 +186,10 @@ class PollingDaemon:
         self.__save_job(__class__.SERVICE_JOB_NAME, service_job, __class__.SERVICE_JOB_INTERVAL)
         self.__load_jobs()
 
-    def __init_logger(self):
+    def __init_logger(self, level):
         logger = logging.getLogger('PollingDaemon')
         try:
-            logger.setLevel('DEBUG')
+            logger.setLevel(level)
         except ValueError as e:
             sys.stderr.write(str(e) + ', fallback to INFO\n')
             logger.setLevel(logging.INFO)
@@ -193,10 +206,16 @@ class PollingDaemon:
 
     def __load_jobs(self):
         for job in PollingServiceDBHelper.get_jobstatus():
+            if job['status'].startswith('err'):
+                self.logger.debug('skip creating err jobs')
+                continue
             r = self.new_job(job['jobname'], job['new_interval'])
+
             if not r:
                 PollingServiceDBHelper.update_jobstatus(job['jobname'], 'err,create')
-            PollingServiceDBHelper.consume_job_change(job['jobname'])
+            else:
+                PollingServiceDBHelper.update_jobstatus(job['jobname'], 'good,loaded')
+                PollingServiceDBHelper.consume_job_change(job['jobname'])
 
     def __create_job(self, jobname):
         if jobname in self.jobs:
@@ -210,7 +229,7 @@ class PollingDaemon:
             self.logger.info('job[{}] created'.format(jobname))
             return inst
         except Exception as e:
-            self.logger.error('job[{}] creation failed, ex: {}'.format(jobname, e.message))
+            self.logger.error('job[{}] creation failed, ex: {}'.format(jobname, e))
             return None
 
     def __save_job(self, jobname, cls, interval):
@@ -218,7 +237,8 @@ class PollingDaemon:
             'name': jobname,
             'inst': cls,
             'interval': interval,
-            'next_ts': time.monotonic()
+            'next_ts': time.monotonic(),
+            'healthy': True
         }
         self.logger.info('job[{}] saved in joblist'.format(jobname))
         return True
@@ -235,12 +255,48 @@ class PollingDaemon:
     def run(self):
         while True:
             for job in self.jobs.values():
-                if time.monotonic() > job['next_ts']:
-                    self.logger.debug('executing job[{}]'.format(job['name']))
+                if not job['healthy']:
+                    continue
+                if time.monotonic() < job['next_ts']:
+                    continue
+                self.logger.debug('>> job[{}]'.format(job['name']))
+                succ = True
+                try:
                     job['inst'].process_one()
+                except:
+                    succ = False
+                    pass
+                if succ:
                     job['next_ts'] = time.monotonic() + job['interval']
-                    self.logger.debug('executed job[{}], schedule next'.format(job['name']))
+                    self.logger.debug('<< job[{}]'.format(job['name']))
+                else:
+                    job['healthy'] = False
+                    self.logger.error('<< job[{}] finished with exception, mark as error'.format(job['name']))
+                    PollingServiceDBHelper.update_jobstatus(job['name', 'err,exception'])
+            self.jobs = {k: v for k, v in self.jobs.items() if v['healthy']}
             time.sleep(1)
+            # TODO: smarter sleep time, instead of sleep(1)
+
+    @staticmethod
+    def sighdr(sig, frame):
+        print('Receive signal, stop now')
+        PollingServiceDBHelper.setdaemoninfo("", "")
+        os._exit(0)
+
+    def run_daemon(self):
+        r = os.fork()
+        if r < 0:
+            return False
+        if r > 0:
+            print('daemon start running in pid[{}]'.format(r))
+            return True
+
+        # child process here
+        pid = os.getpid()
+        signal.signal(signal.SIGUSR1, PollingDaemon.sighdr)
+        cmdline = ' '.join(psutil.Process(pid).cmdline())
+        PollingServiceDBHelper.setdaemoninfo(pid, cmdline)
+        self.run()
 
 class PollingServiceCLI(CmdBase):
     version = '1.0.0'
@@ -256,13 +312,14 @@ class PollingServiceCLI(CmdBase):
         PollingServiceDBHelper.setupdb(self._db())
         cp = CliParser()
 
-        cp.add_command(['start'],   inst=self, func=PollingServiceCLI.start,   help="start polling service")
-        cp.add_command(['stop'],    inst=self, func=PollingServiceCLI.stop,    help="stop polling service")
-        cp.add_command(['restart'], inst=self, func=PollingServiceCLI.restart, help="restart polling service")
-        cp.add_command(['status'],  inst=self, func=PollingServiceCLI.status,  help="show status of polling service")
-        cp.add_command(['jobstatus'],  inst=self, func=PollingServiceCLI.jobstatus,  help="show status of polling jobs")
+        cp.add_command(['start'],            inst=self, func=PollingServiceCLI.start,     help="start polling service")
+        cp.add_command(['start', 'debug'],   inst=self, func=PollingServiceCLI.start,     help="start polling service in foreground mode", default_args={'debug': True})
+        cp.add_command(['stop'],             inst=self, func=PollingServiceCLI.stop,      help="stop polling service")
+        cp.add_command(['restart'],          inst=self, func=PollingServiceCLI.restart,   help="restart polling service")
+        cp.add_command(['status'],           inst=self, func=PollingServiceCLI.status,    help="show status of polling service")
+        cp.add_command(['jobstatus'],        inst=self, func=PollingServiceCLI.jobstatus, help="show status of polling jobs")
 
-        cp.add_command(['dummyjob'], inst=self, func=PollingServiceCLI.dummyjob, help='insert dummy job')
+        cp.add_command(['dummyjob'],         inst=self, func=PollingServiceCLI.dummyjob,  help='insert dummy job')
 
         cp.invoke(self._args.params)
 
@@ -270,9 +327,7 @@ class PollingServiceCLI(CmdBase):
         PollingServiceAPI.add_job(TestJob, 5)
 
     def __is_running(self):
-        db = self._db()
-        pid = db.evedb_get('{}.pid'.format(PROGNAME))
-        cmdline = db.evedb_get('{}.cmdline'.format(PROGNAME))
+        pid, cmdline = PollingServiceDBHelper.getdaemoninfo()
         if pid is None or len(pid) == 0:
             return False
 
@@ -284,16 +339,20 @@ class PollingServiceCLI(CmdBase):
         proc_cmdline = ' '.join(process.cmdline())
         return proc_cmdline == cmdline
 
-    def start(self):
+    def start(self, debug = False):
         if self.__is_running():
+            self.loginfo('polling service already started')
             return True
-        PollingDaemon().run()
-        return False
+        if not debug:
+            return PollingDaemon('INFO').run_daemon()
+        else:
+            return PollingDaemon('DEBUG').run()
 
     def stop(self):
         if not self.__is_running():
             return True
-        raise "Not yet implemented"
+        pid, _ = PollingServiceDBHelper.getdaemoninfo()
+        os.kill(int(pid), signal.SIGUSR1)
         return True
 
     def restart(self):
@@ -333,12 +392,12 @@ class PollingServiceAPI:
         return PollingServiceDBHelper.update_job(jobname, interval = interval, enable = enable)
 
     @staticmethod
-    def enable_job(cls, polling_job, enable=True):
+    def enable_job(polling_job, enable=True):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, enable = enable)
     
     @staticmethod
-    def set_job_interval(cls, polling_job, interval):
+    def set_job_interval(polling_job, interval):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, interval = interval)
 
