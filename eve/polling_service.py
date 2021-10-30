@@ -157,7 +157,6 @@ class PollingServiceDBHelper:
         db.table_update(cls.__table, record)
         return True
 
-
 class PollingServiceJob(PollingJob):
     def __init__(self):
         PollingJob.__init__(self, PROGNAME)
@@ -168,7 +167,7 @@ class PollingServiceJob(PollingJob):
         self.daemon = daemon
 
     def process_one(self):
-        self.logger.debug('TODO: check database for any updates')
+        # TODO: check database updates
         pass
 
 class PollingDaemon:
@@ -258,23 +257,25 @@ class PollingDaemon:
             for job in self.jobs.values():
                 if not job['healthy']:
                     continue
-                if time.monotonic() > job['next_ts']:
-                    self.logger.debug('>> job[{}]'.format(job['name']))
-                    succ = True
-                    try:
-                        job['inst'].process_one()
-                    except:
-                        succ = False
-                        pass
-                    if succ:
-                        job['next_ts'] = time.monotonic() + job['interval']
-                        self.logger.debug('<< job[{}]'.format(job['name']))
-                    else:
-                        job['healthy'] = False
-                        self.logger.error('<< job[{}] finished with exception, mark as error'.format(job['name']))
-                        PollingServiceDBHelper.update_jobstatus(job['name', 'err,exception'])
+                if time.monotonic() < job['next_ts']:
+                    continue
+                self.logger.debug('>> job[{}]'.format(job['name']))
+                succ = True
+                try:
+                    job['inst'].process_one()
+                except:
+                    succ = False
+                    pass
+                if succ:
+                    job['next_ts'] = time.monotonic() + job['interval']
+                    self.logger.debug('<< job[{}]'.format(job['name']))
+                else:
+                    job['healthy'] = False
+                    self.logger.error('<< job[{}] finished with exception, mark as error'.format(job['name']))
+                    PollingServiceDBHelper.update_jobstatus(job['name', 'err,exception'])
             self.jobs = {k: v for k, v in self.jobs.items() if v['healthy']}
             time.sleep(1)
+            # TODO: smarter sleep time, instead of sleep(1)
 
     @staticmethod
     def sighdr(sig, frame):
@@ -350,7 +351,6 @@ class PollingServiceCLI(CmdBase):
     def stop(self):
         if not self.__is_running():
             return True
-        db = self._db()
         pid, _ = PollingServiceDBHelper.getdaemoninfo()
         os.kill(int(pid), signal.SIGUSR1)
         return True
