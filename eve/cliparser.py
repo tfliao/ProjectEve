@@ -274,7 +274,7 @@ class CliParser:
             else:
                 if node.var_child is not None:
                     if node.var_child.token != cmd_token.token:
-                        raise CliParser.CmdTreeBuildException(f"Conflicted variable token given [{node.var_child.token}] vs [{cmd_token.token}]")
+                        raise CliParser.CmdTreeBuildException('Conflicted variable token given [{}] vs [{}]'.format(node.var_child.token, cmd_token.token))
                     node = node.var_child
                 else:
                     node.var_child = cmd_token
