@@ -102,7 +102,7 @@ class ComicScanner:
         url = row['url']
         r = ComicScanner.scan_url(url)
         if r['s'] != 'good':
-            db.table_update_condition(ComicDBConstant.table, {'status': r['s']}, {'id', _id})
+            db.table_update_condition(ComicDBConstant.table, {'status': r['s']}, {'id': _id})
             return r['s']
         else:
             if r['u'] == row['latest_url']:
@@ -111,7 +111,7 @@ class ComicScanner:
             db.table_update_condition(ComicDBConstant.table,
                 {'status': r['s'], 'latest_episode': r['e'],
                 'latest_update': r['d'], 'latest_url': r['u']},
-                {'id', _id})
+                {'id': _id})
             return ComicScanner.RET_UPDATED
 
 class ComicJob(PollingJob):
