@@ -53,6 +53,7 @@ class ComicDBConstant:
     ]
 
 class ComicScanner:
+    BASEURL = 'https://www.manhuagui.com'
 
     @staticmethod
     def scan_url(url):
@@ -84,7 +85,7 @@ class ComicScanner:
         ret['d'] = m.group(1) if m else None
         m = re.search(episode_pattern, content)
         ret['e'] = m.group(2) if m else None
-        ret['u'] = m.group(1) if m else None
+        ret['u'] = ComicScanner.BASEURL + m.group(1) if m else None
         if content.find(removed_pattern) != -1:
             # self.logerror('no more available, url=[{}]'.format(url))
             ret['s'] = 'removed'
@@ -147,8 +148,6 @@ class Comic(CmdBase):
     version = '2.0.0'
     desc = "command line interface to scan new comic arrival in www.manhuagui.com"
 
-    baseurl = 'https://www.manhuagui.com'
-
     def __init__(self, prog = None, prefix = None, loggername = None):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
 
@@ -181,7 +180,7 @@ class Comic(CmdBase):
         if filter is None:
             pass
         elif 'updated'.startswith(filter):
-            rows = [row for row in rows if row['viewed_episode'] != row['latest_episode']]
+            rows = [row for row in rows if row['viewed_update'] != row['viewed_update']]
         elif 'error'.startswith(filter):
             rows = [row for row in rows if row['status'] != 'good']
         return rows
