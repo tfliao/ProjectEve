@@ -180,7 +180,7 @@ class Comic(CmdBase):
         if filter is None:
             pass
         elif 'updated'.startswith(filter):
-            rows = [row for row in rows if row['viewed_update'] != row['latest_update']]
+            rows = [row for row in rows if row['viewed_episode'] != row['latest_episode']]
         elif 'error'.startswith(filter):
             rows = [row for row in rows if row['status'] != 'good']
         return rows
