@@ -195,9 +195,10 @@ class Comic(CmdBase):
         for row in rows:
             name = self._cut_str(row['name'], 40)
             status = row['status']
-            print('{:5d} | {} | {} | {}'.format(row['id'], name, status, row['url']))
-            print('> viewed {}({}) {}'.format(row['viewed_episode'], row['viewed_update'], row['viewed_url']))
-            print('> latest {}({}) {}'.format(row['latest_episode'], row['latest_update'], row['latest_url']))
+            print('{:3d} | {} | {} | {}'.format(row['id'], name, status, row['url']))
+            print('    > viewed {}({}) {}'.format(row['viewed_episode'], row['viewed_update'], row['viewed_url']))
+            print('    > latest {}({}) {}'.format(row['latest_episode'], row['latest_update'], row['latest_url']))
+            print('-' * 80)
 
         return 0
 
