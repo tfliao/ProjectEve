@@ -177,9 +177,9 @@ class Comic(CmdBase):
         # error: status != good
         db = self._db()
         rows = db.table_select(ComicDBConstant.table)
-        if filter is None:
+        if filter is None or len(filter) == 0:
             pass
-        elif 'updated'.startswith(filter):
+        if 'updated'.startswith(filter):
             rows = [row for row in rows if row['viewed_episode'] != row['latest_episode']]
         elif 'error'.startswith(filter):
             rows = [row for row in rows if row['status'] != 'good']
@@ -188,7 +188,14 @@ class Comic(CmdBase):
     def run_list_json(self, filter):
         return self.__list_comics(filter)
 
-    def run_list(self, filter=None):
+    def __reset_status(self, rows):
+        db = self._db()
+        for row in rows:
+            db.table_update_condition(ComicDBConstant.table, {'status': 'good'}, {'id': row['id']})
+            self.loginfo('reset status of comic [{}]'.format(row['name']))
+
+    def run_list(self, filter=None, reset=False):
+        filter = str(filter)
         rows = self.__list_comics(filter)
         print('Total {} records'.format(len(rows)))
 
@@ -199,6 +206,14 @@ class Comic(CmdBase):
             print('    > viewed {}({}) {}'.format(row['viewed_episode'], row['viewed_update'], row['viewed_url']))
             print('    > latest {}({}) {}'.format(row['latest_episode'], row['latest_update'], row['latest_url']))
             print('-' * 80)
+
+        if reset:
+            if filter is None or len(filter) == 0:
+                pass
+            elif 'updated'.startswith(filter):
+                self.run_mark_viewed([int(row['id']) for row in rows])
+            elif 'error'.startswith(filter):
+                self.__reset_status(rows)
 
         return 0
 
@@ -255,6 +270,7 @@ class Comic(CmdBase):
         cp.register_help_keywords('?')
         cp.add_command(['list'], inst=self, func=Comic.run_list, help="list all comics")
         cp.add_command(['list', '@filter'], inst=self, func=Comic.run_list, help="list @filter comics, filter: updated, error")
+        cp.add_command(['list', '@filter', 'reset'], inst=self, func=Comic.run_list, default_args={'reset': True}, help="list @filter comics and reset state, filter: updated, error")
         cp.add_command(['add'], help="add new comic from @url")
         cp.add_command(['add', "@url"], inst=self, func=Comic.run_add, help="add new comic from @url")
         cp.add_command(['delete'], help="delete comic with @id from list")
