@@ -365,8 +365,8 @@ class PollingServiceCLI(CmdBase):
             return True
 
         db = self._db()
-        err = db.__evedb_get('{}.error'.format(PROGNAME))
-        if len(err) != 0:
+        err = db.evedb_get('{}.error'.format(PROGNAME))
+        if err is not None and len(err) != 0:
             print("Polling Service stopped on error {}".format(err))
         else:
             print("Polling Service is not running")
