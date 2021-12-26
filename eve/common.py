@@ -43,12 +43,11 @@ def enable_logger(loglevel = logging.DEBUG, loggername = '', logfile = 'none', l
         if logformat is None:
             logformat = '[%(name)s][%(asctime)s][%(levelname)s] %(message)s'
 
-        fmt = logging.Formatter(logformat)
-        hdr = logging.StreamHandler(sys.stdout)
-        hdr.setFormatter(fmt)
-        hdr.setLevel(loglevel)
+        formatter = logging.Formatter(logformat)
+        handler.setFormatter(formatter)
+        handler.setLevel(loglevel)
         logger.setLevel(loglevel)
-        logger.addHandler(hdr)
+        logger.addHandler(handler)
 
 def logger():
     return logging.getLogger(__EVE_LOGGER_NAME)
