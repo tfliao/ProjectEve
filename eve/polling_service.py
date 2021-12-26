@@ -30,7 +30,7 @@ class PollingJob:
     ### start of db facilities ##
     def set_dbfile(self, dbfile):
         self._dbfile = dbfile
-    
+
     def _db(self):
         if self._dbconn is None:
             if self._dbfile is None:
@@ -135,7 +135,7 @@ class PollingServiceDBHelper:
             record['status'] = status
         db.table_update(cls.__table, record)
         return True
-    
+
     @classmethod
     def get_jobstatus(cls):
         cls.setupdb()
@@ -175,31 +175,21 @@ class PollingDaemon:
     SERVICE_JOB_INTERVAL = 30
 
     def __init__(self, loglevel = 'DEBUG'):
-        self.logger = None
+        eve.common.enable_logger(
+            loglevel = loglevel,
+            loggername = 'PollingDaemon',
+            logfile = 'stdout'
+        )
+
+        self.logger = eve.common.logger()
         self.jobs = {} # jobname => obj
 
-        self.__init_logger(loglevel)
         service_job = self.__create_job(__class__.SERVICE_JOB_NAME)
         if service_job is None:
             raise Exception()
         service_job.set_daemon(self)
         self.__save_job(__class__.SERVICE_JOB_NAME, service_job, __class__.SERVICE_JOB_INTERVAL)
         self.__load_jobs()
-
-    def __init_logger(self, level):
-        logger = logging.getLogger('PollingDaemon')
-        try:
-            logger.setLevel(level)
-        except ValueError as e:
-            sys.stderr.write(str(e) + ', fallback to INFO\n')
-            logger.setLevel(logging.INFO)
-
-        handler = logging.StreamHandler(sys.stdout)
-        logformat = '[%(name)s][%(asctime)s][%(levelname)s] %(message)s'
-        formatter = logging.Formatter(logformat)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        self.logger = logger
 
     def logger(self):
         return self.logger
@@ -301,7 +291,7 @@ class PollingDaemon:
 class PollingServiceCLI(CmdBase):
     version = '1.0.0'
     desc = 'Shared polling service for project eve'
-    
+
     def __init__(self, prog = None, prefix = None, loggername = None):
         CmdBase.__init__(self, prog, self.version, self.desc, prefix=prefix, loggername=loggername)
 
@@ -395,7 +385,7 @@ class PollingServiceAPI:
     def enable_job(polling_job, enable=True):
         jobname = PollingServiceAPI.__to_jobname(polling_job)
         return PollingServiceDBHelper.update_job(jobname, enable = enable)
-    
+
     @staticmethod
     def set_job_interval(polling_job, interval):
         jobname = PollingServiceAPI.__to_jobname(polling_job)

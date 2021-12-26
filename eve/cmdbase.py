@@ -19,8 +19,6 @@ class CmdBase:
    _loggername = None
    _defaultlogfile = 'stderr'
 
-   _logger = None
-
    _required = []
 
    _dbconn = None
@@ -130,19 +128,19 @@ class CmdBase:
       self._defaultlogfile = logfile
 
    def _logger(self):
-      return logging.getLogger(self._loggername)
+      return eve.common.logger()
 
    def logerror(self, msg, *args, **kwargs):
-      self._logger().error(msg, *args, **kwargs)
+      eve.common.logger().error(msg, *args, **kwargs)
 
    def loginfo(self, msg, *args, **kwargs):
-      self._logger().info(msg, *args, **kwargs)
+      eve.common.logger().info(msg, *args, **kwargs)
 
    def logdebug(self, msg, *args, **kwargs):
-      self._logger().debug(msg, *args, **kwargs)
+      eve.common.logger().debug(msg, *args, **kwargs)
 
    def logEnableFor(self, lv):
-      return self._logger().isEnabledFor(lv)
+      return eve.common.logger().isEnabledFor(lv)
 
    def __init_logger(self):
       args = self._args
@@ -154,28 +152,13 @@ class CmdBase:
             self._loggername = self._prog
          else:
             self._loggername = self.__class__.__name__
-      logger = logging.getLogger(self._loggername)
-      try:
-         logger.setLevel(loglevel)
-      except ValueError as e:
-         sys.stderr.write(str(e) + ', fallback to INFO\n')
-         logger.setLevel(logging.INFO)
 
-      if logfile == 'none':
-         handler = logging.NullHandler()
-      elif logfile == 'stderr':
-         handler = logging.StreamHandler(sys.stderr)
-      elif logfile == 'stdout':
-         handler = logging.StreamHandler(sys.stdout)
-      else:
-         handler = logging.FileHandler(logfile)
-
-      if self._logformat is None:
-         self._logformat = '[%(name)s][%(asctime)s][%(levelname)s] %(message)s'
-      formatter = logging.Formatter(self._logformat)
-      handler.setFormatter(formatter)
-
-      logger.addHandler(handler)
+      eve.common.enable_logger(
+         loglevel=loglevel,
+         loggername=self._loggername,
+         logfile=logfile,
+         logformat=self._logformat
+      )
    ### end of logger facilities ###
 
    ### start of interactive ###
