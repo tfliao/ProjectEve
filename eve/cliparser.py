@@ -88,36 +88,75 @@ class CliParser:
                 self.props = {KEY_TYPE: 'short'}
             return TOKEN_TYPE_OPTION
 
+        def token_str(self):
+            if self.type == TOKEN_TYPE_CONST:
+                return self.token
+            elif self.type == TOKEN_TYPE_OPTION:
+                prefix = '--' if self.props[KEY_TYPE] == 'long' else '-'
+                return prefix + self.token
+            elif self.type == TOKEN_TYPE_VAR:
+                token_str = '<@{}>'.format(self.props['target'])
+                if self.props['list']:
+                    token_str += ' ...'
+                return token_str
+            else:
+                raise
+
     """
     default functions
     """
     @staticmethod
-    def __bad_command_handler(parse_info):
-        print('Command not found / Incomplete command.')
-        return 1
+    def __lookup_help(node):
+        if len(node.help) != 0 or node.func is not None:
+            return (node.token_str(), node.help)
+
+        num_child = (0 if node.var_child is None else 1) + len(node.const_children)
+        if num_child == 1:
+            if node.var_child is not None:
+                r = CliParser.__lookup_help(node.var_child)
+            else:
+                r = CliParser.__lookup_help(node.const_children.values()[0])
+            return (node.token_str() + ' ' + r[0], r[1])
+        return node.token_str()
 
     @staticmethod
     def __help_command_handler(parse_info):
+        type = parse_info['handle_type']
         cmdline = parse_info['cmdline'][:parse_info['match_cnt']]
-        print('Given cmdline: {}'.format(cmdline))
-        print(' candidates:')
-        for cnode in parse_info['const_nodes']:
-            if not cnode.hidden:
-                print('\t{}\t{}'.format(cnode.token, cnode.help))
+        node = parse_info['node']
+        cnodes = parse_info['const_nodes']
         vnode = parse_info['variable_node']
-        if vnode is not None:
-            if not vnode.hidden:
-                print('\t{}\t{}'.format(vnode.token, vnode.help))
-        return 0
+
+        if type == 'bad':
+            print('Command not found / Incomplete command.')
+
+        print('> {} ...'.format(' '.join(cmdline)))
+
+        print('candidates:')
+        candidates = []
+        if node.func is not None:
+            candidates.append(('<cr>', node.help))
+
+        nodes = list(cnodes) + [vnode]
+        for node in nodes:
+            if node is not None and not node.hidden:
+                candidates.append(CliParser.__lookup_help(node))
+
+        token_str_len = max([len(c[0]) for c in candidates] + [0])
+        format_str = '    {:' + str(token_str_len) + '}\t{}'
+        for cand in candidates:
+            print(format_str.format(cand[0], cand[1]))
+
+        return type == 'help'
 
     """
     init
     """
     def __init__(self):
         self.root = CliParser.CmdToken("(root)")
-        self.keyword_help = ['help']
+        self.keyword_help = ['help', '?']
         self.cmd_handler = {
-            'bad': CliParser.__bad_command_handler,
+            'bad': CliParser.__help_command_handler,
             'help': CliParser.__help_command_handler
         }
         self.cast_fn = self.__init_cast_fn()
