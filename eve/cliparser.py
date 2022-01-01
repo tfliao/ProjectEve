@@ -117,7 +117,9 @@ class CliParser:
             else:
                 r = CliParser.__lookup_help(node.const_children.values()[0])
             return (node.token_str() + ' ' + r[0], r[1])
-        return node.token_str()
+        if num_child > 1:
+            return (node.token_str() + ' ... (more)', node.help)
+        return (node.token_str(), node.help)
 
     @staticmethod
     def __help_command_handler(parse_info):
