@@ -115,7 +115,7 @@ class CliParser:
             if node.var_child is not None:
                 r = CliParser.__lookup_help(node.var_child)
             else:
-                r = CliParser.__lookup_help(node.const_children.values()[0])
+                r = CliParser.__lookup_help(list(node.const_children.values())[0])
             return (node.token_str() + ' ' + r[0], r[1])
         if num_child > 1:
             return (node.token_str() + ' ... (more)', node.help)
