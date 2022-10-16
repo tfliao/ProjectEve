@@ -1,11 +1,10 @@
 #!/usr/bin/python
 # vim: ts=4:sw=4:expandtab
 import argparse
-from eve.cliparser import CliParser
+from utils.cliparser import CliParser
 from eve.polling_service import PollingJob, PollingServiceAPI
 import requests
 import re
-import unicodedata
 import time
 import random
 

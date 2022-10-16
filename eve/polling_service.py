@@ -11,7 +11,7 @@ import signal
 import eve.common
 from cmdbase import CmdBase
 from eve.database import EveDB
-from eve.cliparser import CliParser
+from utils.cliparser import CliParser
 
 class PollingJob:
     def __init__(self, progname):
