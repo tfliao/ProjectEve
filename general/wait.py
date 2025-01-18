@@ -150,5 +150,5 @@ class Wait(CmdBase):
                             help='consider process from all users')
 
 if __name__ == '__main__':
-    Comic('Comic').run()
+    Wait('Wait').run()
 
