@@ -23,53 +23,62 @@ class Einvoice(CmdBase):
                         help="parse einvoce aggregated file(s), output to stdout")
         cp.add_command(['parse', 'to', '@outfile', 'from', '@files...' ],
                         inst=self, func=Einvoice.do_parse,
-                        help="parse einvoce aggregated file(s), output to @outfile")
+                        help="parse einvoce aggregated file(s), output to @\{outfile\}_meta.csv, and @\{outfile\}_detial.csv")
 
         cp.invoke(self._args.params)
 
     def do_parse(self, files, outfile=None):
-        rows = []
+        all_metas = []
+        all_details = []
         for file in files:
-            rows += self.parse_file(file)
+            (metas, details) = self.parse_file(file)
+            all_metas += metas
+            all_details += details
 
         if outfile is None:
-            outfile = sys.stdout
+            csv_writer = csv.writer(sys.stdout)
+            csv_writer.writerows(all_metas)
+            csv_writer.writerows(all_details)
         else:
-            outfile = open(outfile, encoding='utf-8', mode="a", newline='')
-        
-        csv_writer = csv.writer(outfile)
-        csv_writer.writerows(rows)
+            with open(outfile+"_meta.csv", encoding='utf-8', mode="a", newline='') as meta_file:
+                csv_writer = csv.writer(meta_file)
+                csv_writer.writerows(all_metas)
 
-        outfile.close()
+            with open(outfile+"_detail.csv", encoding='utf-8', mode="a", newline='') as detail_file:
+                csv_writer = csv.writer(detail_file)
+                csv_writer.writerows(all_details)
 
-    def parse_file(self, filepath):
-        result_rows = []
-        last_row = None
-        with open(filepath, encoding='utf-8') as file:
-            csvfile = csv.reader(file, delimiter='|')
-            for row in csvfile:
-                if row[0] == 'M':
-                    if last_row is not None:
-                        last_row[8] = '\n'.join(last_row[8])
-                        last_row[9] = '\n'.join(last_row[9])
-                        result_rows.append(last_row)
-                    last_row = row[1:]
-                    last_row.append([])
-                    last_row[8] = []
-                    last_row[9] = []
-                elif row[0] == 'D':
-                    if last_row is None:
-                        raise
-                    last_row[8].append(row[2])
-                    last_row[9].append(row[3])
-                else:
-                    # ignore header
-                    pass
-        if last_row is not None:
-            last_row[8] = '\n'.join(last_row[8])
-            last_row[9] = '\n'.join(last_row[9])
-            result_rows.append(last_row)
-        return result_rows
+    def parse_file(self, filepath, encoding='utf-8'):
+        result_metas = []
+        result_details = []
+        last_meta = None
+
+        try:
+            with open(filepath, encoding=encoding) as file:
+                csvfile = csv.reader(file, delimiter='|')
+                for row in csvfile:
+                    if row[0] == 'M':
+                        row = row[1:]
+                        result_metas.append(row)
+                        last_meta = row
+                    elif row[0] == 'D':
+                        if last_meta is None:
+                            raise
+                        if last_meta[1] != row[1] and last_meta[5] != row[1]:
+                            print("einvoice_id mismatch: " + last_meta[5] +" vs " + row[1])
+                            raise
+                        row[0] = row[1] # change column for einvoice_id
+                        row[1] = last_meta[2] # copy date
+                        result_details.append(row)
+                    else:
+                        # ignore header
+                        pass
+        except UnicodeDecodeError:
+            if encoding == 'utf-8':
+                return self.parse_file(filepath, 'big5')
+            raise
+
+        return (result_metas, result_details)
 
 if __name__ == '__main__':
     Einvoice('Einvoice').run()
